@@ -199,7 +199,7 @@
 
     updateTopBar({ showSidebarToggle: false, showBookshelfLink: false, breadcrumb: '' });
     els.sidebar.classList.remove('visible');
-    els.bookshelfView.style.display = '';
+    els.bookshelfView.style.display = 'block';
 
     try {
       const manifest = await fetchManifest();
@@ -300,7 +300,7 @@
     updateTopBar({ showSidebarToggle: true, showBookshelfLink: true, breadcrumb: '' });
     els.sidebar.classList.add('visible');
     document.querySelector('.main-content').classList.add('with-sidebar');
-    els.readerView.style.display = '';
+    els.readerView.style.display = 'block';
 
     try {
       const [tocData, readmeText] = await Promise.all([
@@ -332,7 +332,7 @@
     updateTopBar({ showSidebarToggle: true, showBookshelfLink: true, breadcrumb: '' });
     els.sidebar.classList.add('visible');
     document.querySelector('.main-content').classList.add('with-sidebar');
-    els.readerView.style.display = '';
+    els.readerView.style.display = 'block';
 
     try {
       const [tocData, chapterText] = await Promise.all([
@@ -726,7 +726,7 @@
 
     updateTopBar({ showSidebarToggle: false, showBookshelfLink: true, breadcrumb: 'Admin' });
     els.sidebar.classList.remove('visible');
-    els.adminView.style.display = '';
+    els.adminView.style.display = 'block';
 
     if (!adminLoaded) {
       const script = document.createElement('script');

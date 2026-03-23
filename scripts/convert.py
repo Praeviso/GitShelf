@@ -6,6 +6,7 @@ Usage: python scripts/convert.py [--input-dir INPUT] [--output-dir OUTPUT] [--sp
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -166,7 +167,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    pdfs = detect_new_pdfs(args.input_dir)
+    # If INPUT_FILENAME is set (from workflow_dispatch), filter to that file only.
+    input_filename = os.environ.get("INPUT_FILENAME", "").strip()
+    if input_filename:
+        target = args.input_dir / input_filename
+        if target.exists():
+            pdfs = [target]
+        else:
+            print(f"Specified file not found: {target}")
+            sys.exit(1)
+    else:
+        pdfs = detect_new_pdfs(args.input_dir)
+
     if not pdfs:
         print("No new PDFs found in input/. Nothing to do.")
         return

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF2Book</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+
+  <!-- KaTeX CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <!-- Skip to content (accessibility) -->
+  <a href="#main-content" class="skip-link">Skip to content</a>
+
+  <!-- Top bar -->
+  <header class="top-bar">
+    <div class="top-bar-left">
+      <button class="sidebar-toggle" aria-label="Toggle sidebar" style="display:none;">&#9776;</button>
+      <a href="#/" class="top-bar-title">PDF2Book</a>
+      <span class="top-bar-breadcrumb"></span>
+    </div>
+    <div class="top-bar-right">
+      <button class="theme-toggle" aria-label="Toggle theme">
+        <span class="theme-icon-light">&#9728;&#65039;</span>
+        <span class="theme-icon-dark">&#127769;</span>
+      </button>
+      <a href="#/" class="top-bar-bookshelf-link" style="display:none;">Bookshelf</a>
+      <a href="#/admin" class="admin-link" aria-label="Settings">&#9881;</a>
+    </div>
+  </header>
+
+  <!-- Sidebar (reader view only) -->
+  <aside class="sidebar" id="sidebar">
+    <nav class="sidebar-nav" aria-label="Table of contents">
+      <!-- Populated by app.js -->
+    </nav>
+  </aside>
+
+  <!-- Sidebar backdrop (mobile) -->
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <!-- Main content area -->
+  <main id="main-content" class="main-content">
+    <!-- Route views populated by app.js -->
+    <div id="bookshelf-view" class="view"></div>
+    <div id="reader-view" class="view"></div>
+    <div id="admin-view" class="view"></div>
+  </main>
+
+  <!-- CDN Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-texmath/texmath.min.js"></script>
+
+  <!-- App scripts -->
+  <script src="assets/app.js"></script>
+  <!-- admin.js is lazy-loaded by app.js when #/admin is visited -->
+</body>
+</html>

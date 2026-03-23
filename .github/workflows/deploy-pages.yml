@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+  workflow_dispatch:
   workflow_run:
     workflows: ["Convert PDF to Book"]
     types: [completed]

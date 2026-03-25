@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-03-25T06:21:59Z",
+  "books": [
+    {
+      "id": "deep-research-report",
+      "title": "deep_research_report",
+      "generated_title": "deep_research_report",
+      "display_title": null,
+      "author": null,
+      "summary": null,
+      "tags": [],
+      "featured": false,
+      "manual_order": null,
+      "visibility": "published",
+      "metadata_updated_at": null,
+      "chapters_count": 16,
+      "word_count": 4038,
+      "created_at": "2026-03-25T05:45:21Z",
+      "converted_at": "2026-03-25T05:45:21Z",
+      "source_pdf": "deep_research_report.pdf",
+      "split_level": 1,
+      "page_count": null
+    }
+  ]
+}

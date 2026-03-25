@@ -10,6 +10,7 @@
   }
 
   const THEME_KEY = 'theme';
+  const CATALOG_UPDATED_EVENT = 'pdf2book:catalog-updated';
   const SHIKI_CDN = 'https://cdn.jsdelivr.net/npm/shiki/+esm';
   const DESKTOP_BREAKPOINT = 1024;
 
@@ -64,6 +65,7 @@
     initTheme();
     initSidebar();
     initKeyboard();
+    initCatalogSync();
     initRouter();
   }
 
@@ -400,18 +402,44 @@
 
       const cover = document.createElement('div');
       cover.className = 'book-card-cover';
+      if (book.featured) {
+        cover.classList.add('book-card-cover--featured');
+      }
 
       const coverLetter = document.createElement('span');
       coverLetter.className = 'book-card-cover-letter';
-      coverLetter.textContent = book.title ? book.title.charAt(0) : '?';
+      coverLetter.textContent = getBookDisplayTitle(book).charAt(0) || '?';
       cover.appendChild(coverLetter);
 
       const info = document.createElement('div');
       info.className = 'book-card-info';
 
+      if (book.featured) {
+        const badge = document.createElement('span');
+        badge.className = 'book-card-badge';
+        badge.textContent = 'Featured';
+        info.appendChild(badge);
+      }
+
       const title = document.createElement('h2');
       title.className = 'book-card-title';
-      title.textContent = book.title;
+      title.textContent = getBookDisplayTitle(book);
+
+      const byline = typeof book.author === 'string' ? book.author.trim() : '';
+      let bylineElement = null;
+      if (byline) {
+        bylineElement = document.createElement('p');
+        bylineElement.className = 'book-card-byline';
+        bylineElement.textContent = byline;
+      }
+
+      const summary = normalizeSummary(book.summary);
+      let summaryElement = null;
+      if (summary) {
+        summaryElement = document.createElement('p');
+        summaryElement.className = 'book-card-summary';
+        summaryElement.textContent = summary;
+      }
 
       const meta = document.createElement('div');
       meta.className = 'book-card-meta';
@@ -425,8 +453,30 @@
       }
       meta.textContent = parts.join(' · ');
 
+      const tags = normalizeTags(book.tags);
+      let tagsElement = null;
+      if (tags.length > 0) {
+        tagsElement = document.createElement('ul');
+        tagsElement.className = 'book-card-tags';
+        tags.slice(0, 3).forEach((tag) => {
+          const item = document.createElement('li');
+          item.className = 'book-card-tag';
+          item.textContent = tag;
+          tagsElement.appendChild(item);
+        });
+      }
+
       info.appendChild(title);
+      if (bylineElement) {
+        info.appendChild(bylineElement);
+      }
+      if (summaryElement) {
+        info.appendChild(summaryElement);
+      }
       info.appendChild(meta);
+      if (tagsElement) {
+        info.appendChild(tagsElement);
+      }
       card.appendChild(cover);
       card.appendChild(info);
       grid.appendChild(card);
@@ -442,6 +492,29 @@
     }
 
     return String(count);
+  }
+
+  function getBookDisplayTitle(book) {
+    if (!book) return 'Untitled';
+    return String(book.title || book.display_title || book.id || 'Untitled');
+  }
+
+  function normalizeSummary(summary) {
+    if (typeof summary !== 'string') {
+      return '';
+    }
+
+    return summary.trim();
+  }
+
+  function normalizeTags(tags) {
+    if (!Array.isArray(tags)) {
+      return [];
+    }
+
+    return tags
+      .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+      .filter(Boolean);
   }
 
   async function showBookOverview(bookId) {
@@ -871,6 +944,18 @@
         navigateChapter(-1);
       } else if (event.key === 'ArrowRight') {
         navigateChapter(1);
+      }
+    });
+  }
+
+  function initCatalogSync() {
+    window.addEventListener(CATALOG_UPDATED_EVENT, () => {
+      state.manifestCache = null;
+
+      const currentHash = location.hash.slice(1) || '/';
+      const route = parseRoute(currentHash);
+      if (route.type === 'bookshelf') {
+        showBookshelf();
       }
     });
   }

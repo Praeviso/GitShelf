@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       filename:
-        description: "Specific PDF filename in input/ (e.g. book.pdf)"
+        description: "Specific PDF filename in input/ or input/archived/ (e.g. book.pdf)"
         required: false
         type: string
 

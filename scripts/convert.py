@@ -11,9 +11,13 @@ import re
 import shutil
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
-import fitz  # PyMuPDF
+try:
+    import fitz  # PyMuPDF
+except ImportError:  # pragma: no cover - handled at runtime for local tests
+    fitz = None
 
 try:
     from .mineru_client import MineruClient
@@ -28,6 +32,7 @@ except ImportError:
 
 MAX_PAGES_PER_CHUNK = 500
 PAGE_THRESHOLD = 600
+CONVERSION_METADATA_FILENAME = "conversion.json"
 
 
 def detect_new_pdfs(input_dir: Path) -> list[Path]:
@@ -42,6 +47,10 @@ def detect_new_pdfs(input_dir: Path) -> list[Path]:
 
 def get_page_count(pdf_path: Path) -> int:
     """Get page count using PyMuPDF."""
+    if fitz is None:
+        raise RuntimeError(
+            "PyMuPDF (fitz) is required to read PDF pages. Install dependencies from requirements.txt."
+        )
     with fitz.open(pdf_path) as doc:
         return len(doc)
 
@@ -52,6 +61,10 @@ def split_pdf(pdf_path: Path, chunk_size: int = MAX_PAGES_PER_CHUNK) -> list[Pat
     Chunks are written to a temporary directory. The caller is responsible
     for cleaning up via the parent directory of the returned paths.
     """
+    if fitz is None:
+        raise RuntimeError(
+            "PyMuPDF (fitz) is required to split PDFs. Install dependencies from requirements.txt."
+        )
     tmp_dir = Path(tempfile.mkdtemp(prefix="pdf2book_chunks_"))
     chunk_paths: list[Path] = []
 
@@ -77,7 +90,64 @@ def generate_book_id(pdf_path: Path) -> str:
     return slug
 
 
-def convert_single_pdf(pdf_path: Path, output_dir: Path, split_level: int = 1) -> None:
+def _utc_now_iso() -> str:
+    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _write_conversion_metadata(
+    book_dir: Path,
+    *,
+    book_id: str,
+    source_pdf: str,
+    split_level: int,
+    page_count: int,
+    converted_at: str,
+) -> None:
+    data = {
+        "book_id": book_id,
+        "source_pdf": source_pdf,
+        "split_level": split_level,
+        "page_count": page_count,
+        "converted_at": converted_at,
+    }
+    target = book_dir / CONVERSION_METADATA_FILENAME
+    target.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _resolve_input_pdf(input_dir: Path, input_filename: str) -> tuple[Path, bool]:
+    """Resolve a dispatch filename from input/ first, then input/archived/.
+
+    Returns:
+        tuple[path, archive_processed]
+        archive_processed=False means source is already under input/archived.
+    """
+    filename = Path(input_filename).name
+    if not filename:
+        raise FileNotFoundError("Input filename is empty.")
+
+    active = input_dir / filename
+    if active.exists():
+        return active, True
+
+    archived = input_dir / "archived" / filename
+    if archived.exists():
+        return archived, False
+
+    raise FileNotFoundError(
+        f"Specified file not found in input/ or input/archived: {filename}"
+    )
+
+
+def convert_single_pdf(
+    pdf_path: Path,
+    output_dir: Path,
+    split_level: int = 1,
+    *,
+    archive_processed: bool = True,
+) -> None:
     """Convert one PDF through the full pipeline.
 
     Steps:
@@ -105,10 +175,24 @@ def convert_single_pdf(pdf_path: Path, output_dir: Path, split_level: int = 1) -
     chapters = split_by_headings(markdown, level=split_level)
     generate_book_structure(book_id, title, chapters, output_dir, split_level)
 
-    archived_dir = pdf_path.parent / "archived"
-    archived_dir.mkdir(exist_ok=True)
-    shutil.move(str(pdf_path), str(archived_dir / pdf_path.name))
-    print(f"  Archived: {pdf_path.name}")
+    book_dir = output_dir / book_id
+    converted_at = _utc_now_iso()
+    _write_conversion_metadata(
+        book_dir,
+        book_id=book_id,
+        source_pdf=pdf_path.name,
+        split_level=split_level,
+        page_count=page_count,
+        converted_at=converted_at,
+    )
+
+    if archive_processed:
+        archived_dir = pdf_path.parent / "archived"
+        archived_dir.mkdir(exist_ok=True)
+        shutil.move(str(pdf_path), str(archived_dir / pdf_path.name))
+        print(f"  Archived: {pdf_path.name}")
+    else:
+        print(f"  Source kept in archived/: {pdf_path.name}")
 
 
 def _convert_large_pdf(client: MineruClient, pdf_path: Path, page_count: int) -> str:
@@ -169,26 +253,32 @@ def main() -> None:
 
     # If INPUT_FILENAME is set (from workflow_dispatch), filter to that file only.
     input_filename = os.environ.get("INPUT_FILENAME", "").strip()
+    jobs: list[tuple[Path, bool]] = []
     if input_filename:
-        target = args.input_dir / input_filename
-        if target.exists():
-            pdfs = [target]
-        else:
-            print(f"Specified file not found: {target}")
+        try:
+            target, archive_processed = _resolve_input_pdf(args.input_dir, input_filename)
+        except FileNotFoundError as exc:
+            print(str(exc))
             sys.exit(1)
+        jobs = [(target, archive_processed)]
     else:
-        pdfs = detect_new_pdfs(args.input_dir)
+        jobs = [(pdf, True) for pdf in detect_new_pdfs(args.input_dir)]
 
-    if not pdfs:
+    if not jobs:
         print("No new PDFs found in input/. Nothing to do.")
         return
 
-    print(f"Found {len(pdfs)} PDF(s) to process.")
+    print(f"Found {len(jobs)} PDF(s) to process.")
 
     failures: list[tuple[Path, Exception]] = []
-    for pdf_path in pdfs:
+    for pdf_path, archive_processed in jobs:
         try:
-            convert_single_pdf(pdf_path, args.output_dir, args.split_level)
+            convert_single_pdf(
+                pdf_path,
+                args.output_dir,
+                args.split_level,
+                archive_processed=archive_processed,
+            )
         except Exception as exc:
             print(f"  FAILED: {pdf_path.name}: {exc}", file=sys.stderr)
             failures.append((pdf_path, exc))

@@ -10,7 +10,9 @@ const {
   stubMarkdown,
 } = require('./test-utils');
 
-function createAppFetch() {
+function createAppFetch(options) {
+  const config = options || {};
+
   return async function fetchStub(url) {
     const target = String(url);
 
@@ -48,8 +50,17 @@ function createAppFetch() {
     }
 
     if (target === 'manifest.json') {
+      if (typeof config.onManifestRequest === 'function') {
+        config.onManifestRequest();
+      }
+
       return createResponse({
-        json: { books: [] },
+        json: {
+          books:
+            typeof config.getManifestBooks === 'function'
+              ? config.getManifestBooks()
+              : config.books || [],
+        },
       });
     }
 
@@ -116,4 +127,66 @@ test('reader anchor scrolling respects reduced motion preferences', async () => 
   assert.ok(window.__lastScrollIntoView);
   assert.equal(window.__lastScrollIntoView.behavior, 'auto');
   assert.equal(window.__lastScrollIntoView.block, 'start');
+});
+
+test('bookshelf renders curated metadata and refreshes after catalog updates', async () => {
+  let manifestRequests = 0;
+  let currentBooks = [
+    {
+      id: 'demo-book',
+      title: 'Curated Title',
+      author: 'Ada Lovelace',
+      summary: 'A practical guide to analytical engines.',
+      tags: ['history', 'math'],
+      featured: true,
+      chapters_count: 12,
+      word_count: 34567,
+    },
+  ];
+
+  const dom = setupDom({
+    html: createReaderShellHtml(),
+    url: 'https://example.com/#/',
+    fetchImpl: createAppFetch({
+      getManifestBooks() {
+        return currentBooks;
+      },
+      onManifestRequest() {
+        manifestRequests += 1;
+      },
+    }),
+  });
+  const { window } = dom;
+
+  stubMarkdown(window, '');
+  loadBrowserScript(window, 'docs/assets/shared.js');
+  loadBrowserScript(window, 'docs/assets/app.js');
+  await flushPromises();
+  await flushPromises();
+
+  const shelfText = window.document.getElementById('bookshelf-view').textContent;
+  assert.match(shelfText, /Curated Title/);
+  assert.match(shelfText, /Ada Lovelace/);
+  assert.match(shelfText, /history/);
+  assert.equal(manifestRequests, 1);
+
+  currentBooks = [
+    {
+      id: 'demo-book',
+      title: 'Updated Catalog Title',
+      author: 'Ada Lovelace',
+      summary: 'A practical guide to analytical engines.',
+      tags: ['history'],
+      chapters_count: 12,
+      word_count: 34567,
+    },
+  ];
+
+  window.dispatchEvent(new window.CustomEvent('pdf2book:catalog-updated'));
+  await flushPromises();
+  await flushPromises();
+
+  const updatedShelfText = window.document.getElementById('bookshelf-view').textContent;
+  assert.match(updatedShelfText, /Updated Catalog Title/);
+  assert.equal(manifestRequests, 2);
 });

@@ -43,7 +43,9 @@ Your site is now live at `https://<your-username>.github.io/pdf2book/`
 ### Admin Panel (`#/admin`)
 - Upload PDFs directly from the browser (via GitHub API)
 - Real-time conversion progress monitoring
-- Book management: list, delete, re-convert
+- Full catalog management: edit title/author/summary/tags/featured/manual order
+- Lifecycle management: publish, hide, archive, bulk update, permanent delete
+- Search, filter, sort, and provenance-aware re-convert
 - Configurable chapter split level (H1 / H2 / H3)
 - PAT stored only in browser localStorage, never sent anywhere except `api.github.com`
 
@@ -51,7 +53,7 @@ Your site is now live at `https://<your-username>.github.io/pdf2book/`
 - Automatic: push a PDF to `input/`, GitHub Actions converts it
 - MinerU API for high-quality PDF-to-Markdown conversion
 - Handles large PDFs (> 600 pages) by automatic chunking
-- Generates chapter files, table of contents, and bookshelf manifest
+- Generates chapter files, conversion metadata, public manifest, and full catalog
 
 ## Architecture
 
@@ -59,13 +61,14 @@ Your site is now live at `https://<your-username>.github.io/pdf2book/`
 Reader (GitHub Pages)          Admin (Browser)            Pipeline (GitHub Actions)
        |                            |                            |
   fetch docs/                 GitHub API                   MinerU API
-  manifest.json          (PAT in localStorage)          (MINERU_TOKEN secret)
+  manifest.json,          (PAT in localStorage)          (MINERU_TOKEN secret)
+  catalog.json                 |                            |
   toc.json, .md files          |                            |
        |                  Upload PDF to input/         PDF -> Markdown
        |                       |                       Split chapters
-  markdown-it render     Poll Actions status           Generate toc.json
-  shiki + KaTeX                                        Build manifest.json
-                                                       Commit to docs/books/
+  markdown-it render     Edit catalog metadata         Write conversion.json
+  shiki + KaTeX          Poll Actions status           Build manifest + catalog
+                                                       Commit docs/ + archived/
 ```
 
 ## Project Structure
@@ -77,7 +80,9 @@ pdf2book/
 │   └── deploy-pages.yml         # GitHub Pages deployment
 ├── docs/                        # GitHub Pages root (static site)
 │   ├── index.html               # SPA entry point
-│   ├── manifest.json            # Bookshelf metadata
+│   ├── manifest.json            # Public bookshelf metadata (published books only)
+│   ├── catalog.json             # Full merged catalog for admin
+│   ├── catalog-metadata.json    # Curator-managed metadata that survives reconvert
 │   ├── assets/
 │   │   ├── shared.js            # Shared frontend accessibility/runtime helpers
 │   │   ├── app.js               # Reader core logic
@@ -86,6 +91,7 @@ pdf2book/
 │   └── books/<book-id>/         # Converted books
 │       ├── README.md
 │       ├── toc.json
+│       ├── conversion.json      # Conversion facts (source PDF, converted_at, split level)
 │       └── chapters/*.md
 ├── input/                       # PDF upload target
 │   └── archived/                # Processed PDFs
@@ -109,6 +115,14 @@ npm install
 npm run test:frontend
 ```
 
+## Python Tests
+
+Run the catalog and conversion unit tests locally with:
+
+```bash
+python -m unittest discover -s tests/scripts -v
+```
+
 ## Constraints
 
 | Resource | Limit | Impact |
@@ -128,6 +142,9 @@ The pipeline is designed with a replaceable API layer. You can swap MinerU for [
 
 **Q: Can I manually edit converted chapters?**
 Yes. Edit the `.md` files in `docs/books/<book-id>/chapters/` and commit. The site updates automatically.
+
+**Q: Will catalog edits survive re-convert?**
+Yes. Curated metadata is stored separately in `docs/catalog-metadata.json`, and the pipeline merges it back into the published manifest and full catalog on rebuild.
 
 **Q: How do I delete archived PDFs to save space?**
 Delete files in `input/archived/` via the GitHub web interface or git.

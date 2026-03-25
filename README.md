@@ -23,7 +23,7 @@ Your site is now live at `https://<your-username>.github.io/pdf2book/`
 
 ### 3. Upload Your First Book
 
-1. Visit your site and click the gear icon (bottom-right corner)
+1. Visit your site and click the gear icon in the top bar
 2. Enter a GitHub **Personal Access Token** with `repo` scope
    ([Create one here](https://github.com/settings/tokens/new?scopes=repo&description=PDF2Book))
 3. Upload a PDF file
@@ -79,6 +79,7 @@ pdf2book/
 │   ├── index.html               # SPA entry point
 │   ├── manifest.json            # Bookshelf metadata
 │   ├── assets/
+│   │   ├── shared.js            # Shared frontend accessibility/runtime helpers
 │   │   ├── app.js               # Reader core logic
 │   │   ├── admin.js             # Admin panel (lazy-loaded)
 │   │   └── style.css            # All styles (light/dark themes)
@@ -94,8 +95,18 @@ pdf2book/
 │   ├── split_markdown.py        # Markdown chapter splitter
 │   ├── generate_structure.py    # toc.json generator
 │   └── build_manifest.py        # manifest.json builder
+├── tests/frontend/              # Node + jsdom frontend behavior tests
 ├── spec/                        # Design & engineering specs
 └── requirements.txt             # Python dependencies
+```
+
+## Frontend Tests
+
+Run the frontend behavior tests locally with:
+
+```bash
+npm install
+npm run test:frontend
 ```
 
 ## Constraints

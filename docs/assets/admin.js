@@ -8,905 +8,1046 @@
  * Entry point: window.initAdmin(containerElement)
  */
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+(function () {
+  'use strict';
 
-const PAT_STORAGE_KEY = 'github_pat';
-const SPLIT_LEVEL_KEY = 'admin_split_level';
-const REPO_OWNER_KEY = 'admin_repo_owner';
-const REPO_NAME_KEY = 'admin_repo_name';
-const GITHUB_API_BASE = 'https://api.github.com';
-const POLL_INTERVAL_MS = 10_000;
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
-
-// Active polling timer, so it can be cancelled on re-render or navigation
-let pollTimerId = null;
-
-// ---------------------------------------------------------------------------
-// GitHub API helper
-// ---------------------------------------------------------------------------
-
-async function githubApi(path, options = {}) {
-  const pat = localStorage.getItem(PAT_STORAGE_KEY);
-  if (!pat) throw new Error('No GitHub PAT configured');
-
-  const url = path.startsWith('http') ? path : `${GITHUB_API_BASE}${path}`;
-
-  // Only send the PAT to api.github.com
-  const parsed = new URL(url);
-  if (parsed.hostname !== 'api.github.com') {
-    throw new Error('PAT must only be sent to api.github.com');
+  const shared = window.PDF2BookShared;
+  if (!shared) {
+    throw new Error('shared.js must be loaded before admin.js.');
   }
 
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${pat}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
+  const PAT_STORAGE_KEY = 'github_pat';
+  const SPLIT_LEVEL_KEY = 'admin_split_level';
+  const REPO_OWNER_KEY = 'admin_repo_owner';
+  const REPO_NAME_KEY = 'admin_repo_name';
+  const GITHUB_API_BASE = 'https://api.github.com';
+  const POLL_INTERVAL_MS = 10_000;
+  const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
-  if (res.status === 204) return null;
+  const state = {
+    pollTimerId: null,
+    activeDialog: null,
+  };
 
-  if (!res.ok) {
-    const body = await res.text();
-    if (res.status === 401) {
-      throw new Error('Authentication failed. Please check your PAT.');
-    }
-    throw new Error(`GitHub API error ${res.status} on ${path}: ${body}`);
-  }
-
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
-
-// ---------------------------------------------------------------------------
-// Repository detection
-// ---------------------------------------------------------------------------
-
-function detectRepo() {
-  const savedOwner = localStorage.getItem(REPO_OWNER_KEY);
-  const savedName = localStorage.getItem(REPO_NAME_KEY);
-  if (savedOwner && savedName) {
-    return { owner: savedOwner, name: savedName };
-  }
-
-  const hostname = window.location.hostname;
-  const pathname = window.location.pathname;
-
-  // GitHub Pages: <user>.github.io
-  const ghPagesMatch = hostname.match(/^([^.]+)\.github\.io$/);
-  if (ghPagesMatch) {
-    const owner = ghPagesMatch[1];
-    // The repo name is the first segment of the pathname, or <owner>.github.io for user sites
-    const segments = pathname.split('/').filter(Boolean);
-    const name = segments.length > 0 ? segments[0] : `${owner}.github.io`;
-    return { owner, name };
-  }
-
-  return { owner: '', name: '' };
-}
-
-function saveRepo(owner, name) {
-  localStorage.setItem(REPO_OWNER_KEY, owner);
-  localStorage.setItem(REPO_NAME_KEY, name);
-}
-
-// ---------------------------------------------------------------------------
-// DOM utility helpers
-// ---------------------------------------------------------------------------
-
-function createElement(tag, className, textContent) {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-  if (textContent != null) el.textContent = textContent;
-  return el;
-}
-
-function formatDate(iso) {
-  if (!iso) return 'N/A';
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
+  const dateFormatter = new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
-}
 
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / 1024 ** i).toFixed(1)} ${units[i]}`;
-}
+  const numberFormatter = new Intl.NumberFormat(undefined);
 
-// ---------------------------------------------------------------------------
-// Error display helpers
-// ---------------------------------------------------------------------------
+  function githubApi(path, options) {
+    const requestOptions = options || {};
+    const pat = localStorage.getItem(PAT_STORAGE_KEY);
+    if (!pat) throw new Error('No GitHub PAT configured');
 
-function showError(el, msg) {
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
-function clearError(el) {
-  el.textContent = '';
-  el.style.display = 'none';
-}
-
-// ---------------------------------------------------------------------------
-// Config file persistence
-// ---------------------------------------------------------------------------
-
-async function saveSplitLevelConfig(level) {
-  const { owner, repo } = getRepoInfo();
-  const levelNum = parseInt(level.replace('H', ''), 10) || 1;
-  const config = JSON.stringify({ split_level: levelNum }, null, 2) + '\n';
-  const encoded = btoa(unescape(encodeURIComponent(config)));
-  const path = '.pdf2book.json';
-
-  let sha;
-  try {
-    const existing = await githubApi(`/repos/${owner}/${repo}/contents/${path}`);
-    sha = existing.sha;
-  } catch (_) {
-    // File doesn't exist yet
-  }
-
-  const body = {
-    message: `chore(admin): update split level to ${level}`,
-    content: encoded,
-  };
-  if (sha) body.sha = sha;
-
-  await githubApi(`/repos/${owner}/${repo}/contents/${path}`, {
-    method: 'PUT',
-    body: JSON.stringify(body),
-  });
-}
-
-// ---------------------------------------------------------------------------
-// UI rendering — Auth view
-// ---------------------------------------------------------------------------
-
-function renderAuthView(container) {
-  container.replaceChildren();
-
-  const section = createElement('div', 'admin-auth');
-
-  section.appendChild(createElement('h2', null, 'Admin Setup'));
-
-  section.appendChild(
-    createElement(
-      'p',
-      null,
-      'To manage books and upload PDFs, you need a GitHub Personal Access Token (PAT) with "repo" scope. ' +
-        'This token is stored only in your browser and is sent exclusively to api.github.com.'
-    )
-  );
-
-  const link = createElement('a', 'admin-link', 'Create a PAT on GitHub');
-  link.href =
-    'https://github.com/settings/tokens/new?scopes=repo&description=PDF2Book';
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  section.appendChild(link);
-
-  const inputWrapper = createElement('div', 'admin-input-group');
-
-  const input = document.createElement('input');
-  input.type = 'password';
-  input.className = 'admin-pat-input';
-  input.placeholder = 'ghp_...';
-  input.autocomplete = 'off';
-  inputWrapper.appendChild(input);
-
-  const saveBtn = createElement('button', 'btn-primary', 'Save Token');
-  inputWrapper.appendChild(saveBtn);
-
-  section.appendChild(inputWrapper);
-
-  const errorEl = createElement('p', 'admin-error');
-  errorEl.style.display = 'none';
-  section.appendChild(errorEl);
-
-  saveBtn.addEventListener('click', async () => {
-    const value = input.value.trim();
-    if (!value) {
-      showError(errorEl, 'Please enter a PAT.');
-      return;
-    }
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Verifying...';
-    try {
-      localStorage.setItem(PAT_STORAGE_KEY, value);
-      await githubApi('/user');
-      renderDashboard(container);
-    } catch (err) {
-      localStorage.removeItem(PAT_STORAGE_KEY);
-      showError(errorEl, `Token verification failed: ${err.message}`);
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'Save Token';
-    }
-  });
-
-  container.appendChild(section);
-}
-
-// ---------------------------------------------------------------------------
-// Dashboard (main authenticated view)
-// ---------------------------------------------------------------------------
-
-function renderDashboard(container) {
-  cancelWorkflowPolling();
-  container.replaceChildren();
-
-  const dashboard = createElement('div', 'admin-dashboard');
-
-  const repo = detectRepo();
-  const repoBanner = createElement('div', 'admin-repo-banner');
-  if (repo.owner && repo.name) {
-    repoBanner.textContent = `Repository: ${repo.owner}/${repo.name}`;
-  } else {
-    repoBanner.textContent =
-      'Repository not detected. Please configure it in Settings below.';
-  }
-  dashboard.appendChild(repoBanner);
-
-  dashboard.appendChild(renderUploadSection(repo));
-
-  const booksSection = renderBooksSection();
-  dashboard.appendChild(booksSection);
-
-  const historySection = renderHistorySection();
-  dashboard.appendChild(historySection);
-
-  dashboard.appendChild(renderSettingsSection(container, repo));
-
-  container.appendChild(dashboard);
-
-  // Load data asynchronously
-  loadBooks(booksSection);
-  loadHistory(historySection, repo);
-}
-
-// ---------------------------------------------------------------------------
-// Upload section
-// ---------------------------------------------------------------------------
-
-function renderUploadSection(repo) {
-  const section = createElement('section', 'admin-upload');
-  section.appendChild(createElement('h2', null, 'Upload PDF'));
-
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = '.pdf';
-  fileInput.className = 'admin-file-input';
-  section.appendChild(fileInput);
-
-  const progress = createElement('div', 'upload-progress');
-  progress.style.display = 'none';
-  section.appendChild(progress);
-
-  const errorEl = createElement('p', 'admin-error');
-  errorEl.style.display = 'none';
-  section.appendChild(errorEl);
-
-  fileInput.addEventListener('change', () => {
-    clearError(errorEl);
-    const file = fileInput.files[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      showError(errorEl, 'Only .pdf files are accepted.');
-      fileInput.value = '';
-      return;
+    const url = path.startsWith('http') ? path : `${GITHUB_API_BASE}${path}`;
+    const parsed = new URL(url);
+    if (parsed.hostname !== 'api.github.com') {
+      throw new Error('PAT must only be sent to api.github.com');
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      showError(
-        errorEl,
-        `File is too large (${formatBytes(file.size)}). Maximum size is 100 MB.`
-      );
-      fileInput.value = '';
-      return;
-    }
+    return fetch(url, {
+      ...requestOptions,
+      headers: {
+        Authorization: `Bearer ${pat}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+        ...requestOptions.headers,
+      },
+    }).then(async (response) => {
+      if (response.status === 204) return null;
 
-    uploadPdf(file, repo, progress, errorEl, fileInput);
-  });
+      if (!response.ok) {
+        const body = await response.text();
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please check your PAT.');
+        }
 
-  return section;
-}
-
-async function uploadPdf(file, repo, progressEl, errorEl, fileInput) {
-  if (!repo.owner || !repo.name) {
-    showError(errorEl, 'Repository not configured. Please set it in Settings.');
-    return;
-  }
-
-  progressEl.style.display = 'block';
-  fileInput.disabled = true;
-
-  try {
-    setProgress(progressEl, 'reading', `Reading ${file.name}...`);
-
-    const base64 = await readFileAsBase64(file);
-
-    setProgress(progressEl, 'committing', `Committing to input/${file.name}...`);
-
-    await githubApi(
-      `/repos/${repo.owner}/${repo.name}/contents/input/${encodeURIComponent(file.name)}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({
-          message: `feat(pipeline): upload ${file.name}`,
-          content: base64,
-        }),
+        throw new Error(`GitHub API error ${response.status} on ${path}: ${body}`);
       }
-    );
 
-    setProgress(progressEl, 'done', 'Upload complete! Monitoring workflow...');
-    fileInput.value = '';
-    fileInput.disabled = false;
-
-    monitorWorkflow(repo, progressEl);
-  } catch (err) {
-    showError(errorEl, `Upload failed: ${err.message}`);
-    setProgress(progressEl, 'error', 'Upload failed.');
-    fileInput.disabled = false;
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    });
   }
-}
 
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = () => reject(new Error('Failed to read file.'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function setProgress(el, status, message) {
-  el.style.display = 'block';
-  el.className = `upload-progress upload-progress--${status}`;
-  el.textContent = message;
-}
-
-// ---------------------------------------------------------------------------
-// Workflow monitoring
-// ---------------------------------------------------------------------------
-
-function cancelWorkflowPolling() {
-  if (pollTimerId != null) {
-    clearTimeout(pollTimerId);
-    pollTimerId = null;
-  }
-}
-
-function schedulePoll(fn, delay) {
-  cancelWorkflowPolling();
-  pollTimerId = setTimeout(fn, delay);
-}
-
-async function monitorWorkflow(repo, progressEl) {
-  let attempts = 0;
-  const maxAttempts = 60;
-
-  const poll = async () => {
-    attempts++;
-    if (attempts > maxAttempts) {
-      setProgress(
-        progressEl,
-        'error',
-        'Workflow monitoring timed out. Check GitHub Actions manually.'
-      );
-      return;
+  function detectRepo() {
+    const savedOwner = localStorage.getItem(REPO_OWNER_KEY);
+    const savedName = localStorage.getItem(REPO_NAME_KEY);
+    if (savedOwner && savedName) {
+      return { owner: savedOwner, name: savedName };
     }
 
-    try {
-      const data = await githubApi(
-        `/repos/${repo.owner}/${repo.name}/actions/runs?event=push&per_page=5`
-      );
+    const hostname = window.location.hostname;
+    const pathname = window.location.pathname;
+    const githubPagesMatch = hostname.match(/^([^.]+)\.github\.io$/);
+    if (githubPagesMatch) {
+      const owner = githubPagesMatch[1];
+      const segments = pathname.split('/').filter(Boolean);
+      const name = segments.length > 0 ? segments[0] : `${owner}.github.io`;
+      return { owner, name };
+    }
 
-      if (!data || !data.workflow_runs || data.workflow_runs.length === 0) {
-        setProgress(progressEl, 'reading', 'Waiting for workflow to start...');
-        schedulePoll(poll, POLL_INTERVAL_MS);
+    return { owner: '', name: '' };
+  }
+
+  function getRepoInfo() {
+    const repo = detectRepo();
+    return {
+      owner: repo.owner,
+      repo: repo.name,
+    };
+  }
+
+  function saveRepo(owner, name) {
+    localStorage.setItem(REPO_OWNER_KEY, owner);
+    localStorage.setItem(REPO_NAME_KEY, name);
+  }
+
+  function createElement(tag, className, textContent) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (textContent != null) element.textContent = textContent;
+    return element;
+  }
+
+  function createButton(variant, textContent) {
+    const className = variant ? `btn btn-${variant}` : 'btn';
+    const button = createElement('button', className, textContent);
+    button.type = 'button';
+    return button;
+  }
+
+  function createInlineError() {
+    const errorElement = createElement('p', 'admin-error');
+    errorElement.hidden = true;
+    errorElement.setAttribute('role', 'status');
+    errorElement.setAttribute('aria-live', 'polite');
+    errorElement.setAttribute('aria-atomic', 'true');
+    return errorElement;
+  }
+
+  function createStatusRegion() {
+    const statusRegion = createElement('div', 'upload-progress');
+    statusRegion.hidden = true;
+    statusRegion.setAttribute('role', 'status');
+    statusRegion.setAttribute('aria-live', 'polite');
+    statusRegion.setAttribute('aria-atomic', 'true');
+    return statusRegion;
+  }
+
+  function showError(errorElement, message) {
+    errorElement.textContent = message;
+    errorElement.hidden = false;
+  }
+
+  function clearError(errorElement) {
+    errorElement.textContent = '';
+    errorElement.hidden = true;
+  }
+
+  function setProgress(statusRegion, stage, message) {
+    const tone = shared.getProgressTone(stage);
+    statusRegion.className = `upload-progress upload-progress--${tone}`;
+    statusRegion.dataset.stage = stage;
+    statusRegion.textContent = message;
+    statusRegion.hidden = false;
+  }
+
+  function appendProgressLink(statusRegion, href, text) {
+    const spacer = document.createTextNode(' ');
+    const link = createElement('a', 'upload-progress-link', text);
+    link.href = href;
+    statusRegion.appendChild(spacer);
+    statusRegion.appendChild(link);
+  }
+
+  function formatDate(isoDate) {
+    if (!isoDate) return 'N/A';
+    return dateFormatter.format(new Date(isoDate));
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const index = Math.min(
+      units.length - 1,
+      Math.floor(Math.log(bytes) / Math.log(1024))
+    );
+    const value = bytes / 1024 ** index;
+    return `${value.toFixed(1)} ${units[index]}`;
+  }
+
+  async function saveSplitLevelConfig(level) {
+    const { owner, repo } = getRepoInfo();
+    if (!owner || !repo) {
+      throw new Error('Repository not configured. Save the repository override first.');
+    }
+
+    const levelNumber = parseInt(level.replace('H', ''), 10) || 1;
+    const config = JSON.stringify({ split_level: levelNumber }, null, 2) + '\n';
+    const encoded = btoa(unescape(encodeURIComponent(config)));
+    const path = '.pdf2book.json';
+
+    let sha;
+    try {
+      const existing = await githubApi(`/repos/${owner}/${repo}/contents/${path}`);
+      sha = existing.sha;
+    } catch (error) {
+      if (!String(error.message).includes('404')) {
+        throw error;
+      }
+    }
+
+    const body = {
+      message: `chore(admin): update split level to ${level}`,
+      content: encoded,
+    };
+
+    if (sha) {
+      body.sha = sha;
+    }
+
+    await githubApi(`/repos/${owner}/${repo}/contents/${path}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  }
+
+  function renderAuthView(container) {
+    container.replaceChildren();
+
+    const section = createElement('section', 'admin-auth');
+
+    const title = createElement('h1', 'admin-page-title', 'Admin Setup');
+    section.appendChild(title);
+
+    const intro = createElement(
+      'p',
+      'admin-section-intro',
+      'To manage books and upload PDFs, create a GitHub Personal Access Token with repo scope. The token is stored only in your browser and is sent exclusively to api.github.com.'
+    );
+    section.appendChild(intro);
+
+    const link = createElement('a', 'admin-text-link', 'Create a PAT on GitHub');
+    link.href =
+      'https://github.com/settings/tokens/new?scopes=repo&description=PDF2Book';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    section.appendChild(link);
+
+    const form = createElement('form', 'admin-form');
+    const fieldId = 'admin-pat-input';
+
+    const label = createElement('label', 'admin-label', 'Personal Access Token');
+    label.htmlFor = fieldId;
+    form.appendChild(label);
+
+    const inputGroup = createElement('div', 'admin-input-group');
+
+    const input = document.createElement('input');
+    input.id = fieldId;
+    input.type = 'password';
+    input.name = 'github_pat';
+    input.className = 'admin-pat-input';
+    input.placeholder = 'ghp_…';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.autocapitalize = 'off';
+    inputGroup.appendChild(input);
+
+    const saveButton = createButton('primary', 'Save Token');
+    saveButton.type = 'submit';
+    inputGroup.appendChild(saveButton);
+
+    form.appendChild(inputGroup);
+
+    const errorElement = createInlineError();
+    form.appendChild(errorElement);
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      clearError(errorElement);
+
+      const value = input.value.trim();
+      if (!value) {
+        showError(errorElement, 'Enter a GitHub PAT with repo scope.');
+        input.focus();
         return;
       }
 
-      const run = data.workflow_runs[0];
+      saveButton.disabled = true;
+      saveButton.textContent = 'Verifying…';
 
-      if (run.status === 'queued') {
-        setProgress(progressEl, 'reading', 'Workflow queued...');
-        schedulePoll(poll, POLL_INTERVAL_MS);
-      } else if (run.status === 'in_progress') {
-        setProgress(progressEl, 'committing', 'Workflow in progress...');
-        schedulePoll(poll, POLL_INTERVAL_MS);
-      } else if (run.status === 'completed') {
-        if (run.conclusion === 'success') {
-          setProgress(progressEl, 'done', 'Conversion complete! Your book is ready. ');
-          const linkEl = createElement('a', 'admin-link', 'View bookshelf');
-          linkEl.href = '#/';
-          progressEl.appendChild(linkEl);
-        } else {
+      try {
+        localStorage.setItem(PAT_STORAGE_KEY, value);
+        await githubApi('/user');
+        renderDashboard(container);
+      } catch (error) {
+        localStorage.removeItem(PAT_STORAGE_KEY);
+        showError(errorElement, `Token verification failed: ${error.message}`);
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save Token';
+        input.focus();
+      }
+    });
+
+    section.appendChild(form);
+    container.appendChild(section);
+  }
+
+  function renderDashboard(container) {
+    cancelWorkflowPolling();
+    closeActiveDialog();
+    container.replaceChildren();
+
+    const dashboard = createElement('div', 'admin-dashboard');
+
+    const pageTitle = createElement('h1', 'admin-page-title', 'Admin');
+    dashboard.appendChild(pageTitle);
+
+    const intro = createElement(
+      'p',
+      'admin-section-intro',
+      'Upload new books, monitor conversion progress, and manage repository-backed settings from the browser.'
+    );
+    dashboard.appendChild(intro);
+
+    const repo = detectRepo();
+    const repoBanner = createElement('div', 'admin-repo-banner');
+    repoBanner.textContent =
+      repo.owner && repo.name
+        ? `Repository: ${repo.owner}/${repo.name}`
+        : 'Repository not detected. Configure it in Settings before uploading.';
+    dashboard.appendChild(repoBanner);
+
+    const uploadSection = renderUploadSection(repo);
+    const booksSection = renderBooksSection();
+    const historySection = renderHistorySection();
+    const settingsSection = renderSettingsSection(container, repo);
+
+    dashboard.appendChild(uploadSection);
+    dashboard.appendChild(booksSection);
+    dashboard.appendChild(historySection);
+    dashboard.appendChild(settingsSection);
+
+    container.appendChild(dashboard);
+
+    loadBooks(booksSection);
+    loadHistory(historySection, repo);
+  }
+
+  function renderUploadSection(repo) {
+    const section = createElement('section', 'admin-upload');
+
+    section.appendChild(createElement('h2', null, 'Upload PDF'));
+
+    const fileId = 'admin-file-input';
+    const label = createElement('label', 'admin-label', 'Choose a PDF file');
+    label.htmlFor = fileId;
+    section.appendChild(label);
+
+    const fileInput = document.createElement('input');
+    fileInput.id = fileId;
+    fileInput.type = 'file';
+    fileInput.name = 'book_pdf';
+    fileInput.accept = '.pdf,application/pdf';
+    fileInput.className = 'admin-file-input';
+    section.appendChild(fileInput);
+
+    const progress = createStatusRegion();
+    section.appendChild(progress);
+
+    const errorElement = createInlineError();
+    section.appendChild(errorElement);
+
+    fileInput.addEventListener('change', () => {
+      clearError(errorElement);
+
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        showError(errorElement, 'Only .pdf files are accepted.');
+        fileInput.value = '';
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        showError(
+          errorElement,
+          `File is too large (${formatBytes(file.size)}). Maximum size is 100 MB.`
+        );
+        fileInput.value = '';
+        return;
+      }
+
+      uploadPdf(file, repo, progress, errorElement, fileInput);
+    });
+
+    return section;
+  }
+
+  async function uploadPdf(file, repo, progressElement, errorElement, fileInput) {
+    if (!repo.owner || !repo.name) {
+      showError(errorElement, 'Repository not configured. Save it in Settings first.');
+      return;
+    }
+
+    fileInput.disabled = true;
+    clearError(errorElement);
+
+    try {
+      setProgress(progressElement, 'reading', `Reading ${file.name}…`);
+
+      const base64 = await readFileAsBase64(file);
+
+      setProgress(progressElement, 'committing', `Committing to input/${file.name}…`);
+
+      await githubApi(
+        `/repos/${repo.owner}/${repo.name}/contents/input/${encodeURIComponent(file.name)}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            message: `feat(pipeline): upload ${file.name}`,
+            content: base64,
+          }),
+        }
+      );
+
+      setProgress(progressElement, 'done', 'Upload complete. Monitoring workflow…');
+      fileInput.value = '';
+      fileInput.disabled = false;
+
+      monitorWorkflow(repo, progressElement);
+    } catch (error) {
+      showError(errorElement, `Upload failed: ${error.message}`);
+      setProgress(progressElement, 'error', 'Upload failed.');
+      fileInput.disabled = false;
+    }
+  }
+
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        resolve(result.split(',')[1]);
+      };
+      reader.onerror = () => reject(new Error('Failed to read the selected file.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function cancelWorkflowPolling() {
+    if (state.pollTimerId != null) {
+      clearTimeout(state.pollTimerId);
+      state.pollTimerId = null;
+    }
+  }
+
+  function schedulePoll(fn, delay) {
+    cancelWorkflowPolling();
+    state.pollTimerId = setTimeout(fn, delay);
+  }
+
+  async function monitorWorkflow(repo, progressElement) {
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    const poll = async () => {
+      attempts += 1;
+      if (attempts > maxAttempts) {
+        setProgress(
+          progressElement,
+          'error',
+          'Workflow monitoring timed out. Check GitHub Actions manually.'
+        );
+        return;
+      }
+
+      try {
+        const data = await githubApi(
+          `/repos/${repo.owner}/${repo.name}/actions/runs?event=push&per_page=5`
+        );
+
+        if (!data || !data.workflow_runs || data.workflow_runs.length === 0) {
+          setProgress(progressElement, 'reading', 'Waiting for workflow to start…');
+          schedulePoll(poll, POLL_INTERVAL_MS);
+          return;
+        }
+
+        const run = data.workflow_runs[0];
+
+        if (run.status === 'queued') {
+          setProgress(progressElement, 'queued', 'Workflow queued…');
+          schedulePoll(poll, POLL_INTERVAL_MS);
+          return;
+        }
+
+        if (run.status === 'in_progress') {
+          setProgress(progressElement, 'running', 'Workflow in progress…');
+          schedulePoll(poll, POLL_INTERVAL_MS);
+          return;
+        }
+
+        if (run.status === 'completed' && run.conclusion === 'success') {
+          setProgress(progressElement, 'done', 'Conversion complete. Your book is ready.');
+          appendProgressLink(progressElement, '#/', 'View Bookshelf');
+          return;
+        }
+
+        if (run.status === 'completed') {
           setProgress(
-            progressEl,
+            progressElement,
             'error',
             `Workflow finished with conclusion: ${run.conclusion}. Check GitHub Actions for details.`
           );
+          return;
         }
-      } else {
-        setProgress(progressEl, 'reading', `Workflow status: ${run.status}...`);
+
+        setProgress(progressElement, 'reading', `Workflow status: ${run.status}…`);
         schedulePoll(poll, POLL_INTERVAL_MS);
+      } catch (error) {
+        setProgress(
+          progressElement,
+          'error',
+          `Error checking workflow: ${error.message}`
+        );
       }
-    } catch (err) {
-      setProgress(
-        progressEl,
-        'error',
-        `Error checking workflow: ${err.message}`
-      );
-    }
-  };
+    };
 
-  schedulePoll(poll, 3000);
-}
-
-// ---------------------------------------------------------------------------
-// Books section
-// ---------------------------------------------------------------------------
-
-function renderBooksSection() {
-  const section = createElement('section', 'admin-books');
-  section.appendChild(createElement('h2', null, 'Books'));
-
-  const list = createElement('div', 'admin-books-list', 'Loading books...');
-  section.appendChild(list);
-
-  return section;
-}
-
-async function loadBooks(section) {
-  const list = section.querySelector('.admin-books-list');
-
-  try {
-    const res = await fetch('manifest.json');
-    if (!res.ok) {
-      list.textContent =
-        'No manifest.json found. No books have been converted yet.';
-      return;
-    }
-    const manifest = await res.json();
-
-    if (!manifest.books || manifest.books.length === 0) {
-      list.textContent = 'No books yet. Upload a PDF to get started.';
-      return;
-    }
-
-    list.replaceChildren();
-
-    const table = createElement('table', 'admin-table');
-
-    // Build header
-    const thead = document.createElement('thead');
-    const headerRow = document.createElement('tr');
-    ['Title', 'Chapters', 'Words', 'Created', 'Actions'].forEach((text) => {
-      headerRow.appendChild(createElement('th', null, text));
-    });
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-
-    // Build body
-    const tbody = document.createElement('tbody');
-    for (const book of manifest.books) {
-      const tr = document.createElement('tr');
-
-      const tdTitle = document.createElement('td');
-      const titleLink = createElement('a', null, book.title || book.id);
-      titleLink.href = `#/${encodeURIComponent(book.id)}`;
-      tdTitle.appendChild(titleLink);
-      tr.appendChild(tdTitle);
-
-      tr.appendChild(
-        createElement('td', null, String(book.chapters_count ?? 'N/A'))
-      );
-
-      tr.appendChild(
-        createElement(
-          'td',
-          null,
-          book.word_count != null
-            ? book.word_count.toLocaleString()
-            : 'N/A'
-        )
-      );
-
-      tr.appendChild(createElement('td', null, formatDate(book.created_at)));
-
-      const tdActions = document.createElement('td');
-      const reconvertBtn = createElement('button', 'btn-secondary', 'Re-convert');
-      reconvertBtn.addEventListener('click', () => {
-        triggerReconvert(book.id, reconvertBtn);
-      });
-      tdActions.appendChild(reconvertBtn);
-      const deleteBtn = createElement('button', 'btn-danger', 'Delete');
-      deleteBtn.style.marginLeft = '8px';
-      deleteBtn.addEventListener('click', () => {
-        confirmDeleteBook(book, section);
-      });
-      tdActions.appendChild(deleteBtn);
-      tr.appendChild(tdActions);
-
-      tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
-    list.appendChild(table);
-  } catch (err) {
-    list.textContent = `Failed to load books: ${err.message}`;
+    schedulePoll(poll, 3000);
   }
-}
 
-// ---------------------------------------------------------------------------
-// Book deletion
-// ---------------------------------------------------------------------------
+  function renderBooksSection() {
+    const section = createElement('section', 'admin-books');
+    section.appendChild(createElement('h2', null, 'Books'));
 
-function confirmDeleteBook(book, booksSection) {
-  const existing = document.querySelector('.admin-modal-overlay');
-  if (existing) existing.remove();
+    const list = createElement('div', 'admin-books-list', 'Loading books…');
+    section.appendChild(list);
 
-  const overlay = createElement('div', 'admin-modal-overlay');
+    return section;
+  }
 
-  const modal = createElement('div', 'admin-modal');
+  async function loadBooks(section) {
+    const list = section.querySelector('.admin-books-list');
 
-  modal.appendChild(createElement('h3', null, 'Delete Book'));
-
-  modal.appendChild(
-    createElement(
-      'p',
-      null,
-      `Are you sure you want to delete "${book.title || book.id}"? This cannot be undone.`
-    )
-  );
-
-  const errorEl = createElement('p', 'admin-error');
-  errorEl.style.display = 'none';
-  modal.appendChild(errorEl);
-
-  const btnGroup = createElement('div', 'admin-btn-group');
-
-  const cancelBtn = createElement('button', 'btn-secondary', 'Cancel');
-  cancelBtn.addEventListener('click', () => overlay.remove());
-  btnGroup.appendChild(cancelBtn);
-
-  const confirmBtn = createElement('button', 'btn-danger', 'Delete');
-  confirmBtn.addEventListener('click', async () => {
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = 'Deleting...';
     try {
-      await deleteBook(book);
-      overlay.remove();
-      loadBooks(booksSection);
-    } catch (err) {
-      showError(errorEl, `Delete failed: ${err.message}`);
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = 'Delete';
+      const response = await fetch('manifest.json');
+      if (!response.ok) {
+        list.textContent = 'No manifest.json found. No books have been converted yet.';
+        return;
+      }
+
+      const manifest = await response.json();
+      if (!manifest.books || manifest.books.length === 0) {
+        list.textContent = 'No books yet. Upload a PDF to get started.';
+        return;
+      }
+
+      list.replaceChildren();
+
+      const table = createElement('table', 'admin-table');
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Title', 'Chapters', 'Words', 'Created', 'Actions'].forEach((headerText) => {
+        const th = createElement('th', null, headerText);
+        th.scope = 'col';
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+
+      for (const book of manifest.books) {
+        const row = document.createElement('tr');
+
+        const titleCell = document.createElement('td');
+        const titleLink = createElement('a', null, book.title || book.id);
+        titleLink.href = `#/${encodeURIComponent(book.id)}`;
+        titleCell.appendChild(titleLink);
+        row.appendChild(titleCell);
+
+        row.appendChild(createElement('td', 'admin-table-number', String(book.chapters_count ?? 'N/A')));
+
+        row.appendChild(
+          createElement(
+            'td',
+            'admin-table-number',
+            book.word_count != null ? numberFormatter.format(book.word_count) : 'N/A'
+          )
+        );
+
+        row.appendChild(createElement('td', null, formatDate(book.created_at)));
+
+        const actionsCell = document.createElement('td');
+        const actions = createElement('div', 'admin-actions');
+        const actionError = createInlineError();
+
+        const reconvertButton = createButton('secondary', 'Re-convert');
+        reconvertButton.addEventListener('click', () => {
+          clearError(actionError);
+          triggerReconvert(book.id, reconvertButton, actionError);
+        });
+
+        const deleteButton = createButton('danger', 'Delete');
+        deleteButton.addEventListener('click', () => {
+          clearError(actionError);
+          confirmDeleteBook(book, section, deleteButton);
+        });
+
+        actions.appendChild(reconvertButton);
+        actions.appendChild(deleteButton);
+        actionsCell.appendChild(actions);
+        actionsCell.appendChild(actionError);
+        row.appendChild(actionsCell);
+
+        tbody.appendChild(row);
+      }
+
+      table.appendChild(tbody);
+      list.appendChild(table);
+    } catch (error) {
+      list.textContent = `Failed to load books: ${error.message}`;
     }
-  });
-  btnGroup.appendChild(confirmBtn);
-
-  modal.appendChild(btnGroup);
-  overlay.appendChild(modal);
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-
-  document.body.appendChild(overlay);
-}
-
-async function deleteBook(book) {
-  const repo = detectRepo();
-  if (!repo.owner || !repo.name) {
-    throw new Error('Repository not configured.');
   }
 
-  const files = await listFilesRecursive(repo, `docs/books/${book.id}`);
+  function closeActiveDialog() {
+    if (state.activeDialog && typeof state.activeDialog.close === 'function') {
+      state.activeDialog.close();
+    }
+  }
 
-  // GitHub Contents API requires sequential deletes to avoid SHA conflicts
-  for (const file of files) {
-    await githubApi(
-      `/repos/${repo.owner}/${repo.name}/contents/${file.path}`,
-      {
+  function openDialog(options) {
+    closeActiveDialog();
+
+    const previousActiveElement = document.activeElement;
+    const titleId = shared.nextId('dialog-title');
+    const descriptionId = shared.nextId('dialog-description');
+
+    const overlay = createElement('div', 'admin-modal-overlay');
+    const modal = createElement('div', 'admin-modal');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', titleId);
+    modal.setAttribute('aria-describedby', descriptionId);
+    modal.setAttribute('tabindex', '-1');
+
+    const title = createElement('h2', null, options.title);
+    title.id = titleId;
+    modal.appendChild(title);
+
+    const description = createElement('p', null, options.description);
+    description.id = descriptionId;
+    modal.appendChild(description);
+
+    const errorElement = createInlineError();
+    modal.appendChild(errorElement);
+
+    const buttonGroup = createElement('div', 'admin-btn-group');
+    const cancelButton = createButton('secondary', options.cancelLabel || 'Cancel');
+    const confirmButton = createButton(
+      options.confirmVariant || 'danger',
+      options.confirmLabel || 'Confirm'
+    );
+
+    buttonGroup.appendChild(cancelButton);
+    buttonGroup.appendChild(confirmButton);
+    modal.appendChild(buttonGroup);
+    overlay.appendChild(modal);
+
+    const originalOverflow = document.body.style.overflow;
+
+    function cleanup() {
+      overlay.removeEventListener('click', onOverlayClick);
+      overlay.removeEventListener('keydown', onOverlayKeyDown);
+      overlay.remove();
+      document.body.style.overflow = originalOverflow;
+      state.activeDialog = null;
+
+      if (previousActiveElement && typeof previousActiveElement.focus === 'function') {
+        previousActiveElement.focus();
+      }
+    }
+
+    async function onConfirmClick() {
+      clearError(errorElement);
+      confirmButton.disabled = true;
+      confirmButton.textContent = `${options.confirmLabel || 'Confirm'}…`;
+
+      try {
+        await options.onConfirm();
+        cleanup();
+      } catch (error) {
+        showError(errorElement, options.getErrorMessage(error));
+        confirmButton.disabled = false;
+        confirmButton.textContent = options.confirmLabel || 'Confirm';
+      }
+    }
+
+    function onOverlayClick(event) {
+      if (event.target === overlay) {
+        cleanup();
+      }
+    }
+
+    function onOverlayKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cleanup();
+        return;
+      }
+
+      shared.trapFocusKey(event, modal);
+    }
+
+    cancelButton.addEventListener('click', cleanup);
+    confirmButton.addEventListener('click', onConfirmClick);
+    overlay.addEventListener('click', onOverlayClick);
+    overlay.addEventListener('keydown', onOverlayKeyDown);
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+    state.activeDialog = { close: cleanup };
+
+    cancelButton.focus();
+  }
+
+  function confirmDeleteBook(book, booksSection, triggerButton) {
+    if (triggerButton && typeof triggerButton.focus === 'function') {
+      triggerButton.focus();
+    }
+
+    openDialog({
+      title: 'Delete Book',
+      description: `Delete "${book.title || book.id}" from the bookshelf? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      confirmVariant: 'danger',
+      getErrorMessage(error) {
+        return `Delete failed: ${error.message}`;
+      },
+      onConfirm: async function () {
+        await deleteBook(book);
+        await loadBooks(booksSection);
+      },
+    });
+  }
+
+  async function deleteBook(book) {
+    const repo = detectRepo();
+    if (!repo.owner || !repo.name) {
+      throw new Error('Repository not configured.');
+    }
+
+    const files = await listFilesRecursive(repo, `docs/books/${book.id}`);
+    for (const file of files) {
+      await githubApi(`/repos/${repo.owner}/${repo.name}/contents/${file.path}`, {
         method: 'DELETE',
         body: JSON.stringify({
           message: `chore(admin): delete ${file.path}`,
           sha: file.sha,
         }),
-      }
-    );
-  }
-
-  await updateManifestRemoveBook(repo, book.id);
-}
-
-async function listFilesRecursive(repo, path) {
-  const items = await githubApi(
-    `/repos/${repo.owner}/${repo.name}/contents/${path}`
-  );
-
-  let files = [];
-  for (const item of items) {
-    if (item.type === 'file') {
-      files.push({ path: item.path, sha: item.sha });
-    } else if (item.type === 'dir') {
-      const subFiles = await listFilesRecursive(repo, item.path);
-      files = files.concat(subFiles);
+      });
     }
+
+    await updateManifestRemoveBook(repo, book.id);
   }
-  return files;
-}
 
-async function updateManifestRemoveBook(repo, bookId) {
-  const manifestData = await githubApi(
-    `/repos/${repo.owner}/${repo.name}/contents/docs/manifest.json`
-  );
+  async function listFilesRecursive(repo, path) {
+    const items = await githubApi(`/repos/${repo.owner}/${repo.name}/contents/${path}`);
 
-  const content = atob(manifestData.content.replace(/\n/g, ''));
-  const manifest = JSON.parse(content);
+    let files = [];
+    for (const item of items) {
+      if (item.type === 'file') {
+        files.push({ path: item.path, sha: item.sha });
+      } else if (item.type === 'dir') {
+        files = files.concat(await listFilesRecursive(repo, item.path));
+      }
+    }
 
-  manifest.books = manifest.books.filter((b) => b.id !== bookId);
+    return files;
+  }
 
-  const updated = JSON.stringify(manifest, null, 2);
-  const encoded = btoa(unescape(encodeURIComponent(updated)));
+  async function updateManifestRemoveBook(repo, bookId) {
+    const manifestData = await githubApi(
+      `/repos/${repo.owner}/${repo.name}/contents/docs/manifest.json`
+    );
 
-  await githubApi(
-    `/repos/${repo.owner}/${repo.name}/contents/docs/manifest.json`,
-    {
+    const content = atob(manifestData.content.replace(/\n/g, ''));
+    const manifest = JSON.parse(content);
+    manifest.books = manifest.books.filter((book) => book.id !== bookId);
+
+    const updated = JSON.stringify(manifest, null, 2);
+    const encoded = btoa(unescape(encodeURIComponent(updated)));
+
+    await githubApi(`/repos/${repo.owner}/${repo.name}/contents/docs/manifest.json`, {
       method: 'PUT',
       body: JSON.stringify({
         message: `chore(admin): remove ${bookId} from manifest`,
         sha: manifestData.sha,
         content: encoded,
       }),
-    }
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Re-conversion via workflow_dispatch
-// ---------------------------------------------------------------------------
-
-async function triggerReconvert(bookId, btn) {
-  const originalText = btn.textContent;
-  btn.textContent = 'Triggering...';
-  btn.disabled = true;
-
-  try {
-    const { owner, repo } = getRepoInfo();
-    await githubApi(`/repos/${owner}/${repo}/actions/workflows/convert.yml/dispatches`, {
-      method: 'POST',
-      body: JSON.stringify({
-        ref: 'main',
-        inputs: { filename: bookId },
-      }),
     });
-    btn.textContent = 'Triggered!';
-    setTimeout(() => {
-      btn.textContent = originalText;
-      btn.disabled = false;
-    }, 3000);
-  } catch (err) {
-    btn.textContent = 'Failed';
-    btn.disabled = false;
-    setTimeout(() => {
-      btn.textContent = originalText;
-    }, 3000);
-    showError(btn.parentElement, `Re-convert failed: ${err.message}`);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Conversion history
-// ---------------------------------------------------------------------------
-
-function renderHistorySection() {
-  const section = createElement('section', 'admin-history');
-  section.appendChild(createElement('h2', null, 'Conversion History'));
-
-  const list = createElement('div', 'admin-history-list', 'Loading...');
-  section.appendChild(list);
-
-  return section;
-}
-
-async function loadHistory(section, repo) {
-  const list = section.querySelector('.admin-history-list');
-
-  if (!repo.owner || !repo.name) {
-    list.textContent = 'Repository not configured.';
-    return;
   }
 
-  try {
-    const items = await githubApi(
-      `/repos/${repo.owner}/${repo.name}/contents/input/archived`
-    );
+  async function triggerReconvert(bookId, button, errorElement) {
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Triggering…';
 
-    if (!items || items.length === 0) {
-      list.textContent = 'No archived PDFs found.';
+    try {
+      const { owner, repo } = getRepoInfo();
+      if (!owner || !repo) {
+        throw new Error('Repository not configured. Save it in Settings first.');
+      }
+
+      await githubApi(`/repos/${owner}/${repo}/actions/workflows/convert.yml/dispatches`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ref: 'main',
+          inputs: { filename: bookId },
+        }),
+      });
+
+      button.textContent = 'Triggered!';
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.disabled = false;
+      }, 3000);
+    } catch (error) {
+      button.textContent = originalText;
+      button.disabled = false;
+      showError(errorElement, `Re-convert failed: ${error.message}`);
+    }
+  }
+
+  function renderHistorySection() {
+    const section = createElement('section', 'admin-history');
+    section.appendChild(createElement('h2', null, 'Conversion History'));
+
+    const list = createElement('div', 'admin-history-list', 'Loading…');
+    section.appendChild(list);
+
+    return section;
+  }
+
+  async function loadHistory(section, repo) {
+    const list = section.querySelector('.admin-history-list');
+
+    if (!repo.owner || !repo.name) {
+      list.textContent = 'Repository not configured.';
       return;
     }
 
-    list.replaceChildren();
+    try {
+      const items = await githubApi(
+        `/repos/${repo.owner}/${repo.name}/contents/input/archived`
+      );
 
-    const ul = createElement('ul', 'admin-history-items');
-
-    for (const item of items) {
-      if (item.name === '.gitkeep') continue;
-
-      const li = document.createElement('li');
-
-      li.appendChild(createElement('span', 'history-name', item.name));
-
-      if (item.size != null) {
-        li.appendChild(
-          createElement('span', 'history-size', formatBytes(item.size))
-        );
+      if (!items || items.length === 0) {
+        list.textContent = 'No archived PDFs found.';
+        return;
       }
 
-      ul.appendChild(li);
-    }
+      list.replaceChildren();
+      const historyItems = createElement('ul', 'admin-history-items');
 
-    list.appendChild(ul);
-  } catch (err) {
-    if (err.message.includes('404')) {
-      list.textContent = 'No archived PDFs directory found.';
-    } else {
-      list.textContent = `Failed to load history: ${err.message}`;
+      for (const item of items) {
+        if (item.name === '.gitkeep') continue;
+
+        const listItem = document.createElement('li');
+        listItem.appendChild(createElement('span', 'history-name', item.name));
+
+        if (item.size != null) {
+          listItem.appendChild(createElement('span', 'history-size', formatBytes(item.size)));
+        }
+
+        historyItems.appendChild(listItem);
+      }
+
+      list.appendChild(historyItems);
+    } catch (error) {
+      list.textContent = String(error.message).includes('404')
+        ? 'No archived PDFs directory found.'
+        : `Failed to load history: ${error.message}`;
     }
   }
-}
 
-// ---------------------------------------------------------------------------
-// Settings section
-// ---------------------------------------------------------------------------
+  function renderSettingsSection(dashboardContainer, repo) {
+    const section = createElement('section', 'admin-settings');
+    section.appendChild(createElement('h2', null, 'Settings'));
 
-function renderSettingsSection(dashboardContainer, repo) {
-  const section = createElement('section', 'admin-settings');
-  section.appendChild(createElement('h2', null, 'Settings'));
+    const splitGroup = createElement('div', 'admin-setting-group');
+    const splitLabel = createElement('label', 'admin-label', 'Chapter Split Level');
+    const splitId = 'admin-split-level';
+    splitLabel.htmlFor = splitId;
+    splitGroup.appendChild(splitLabel);
 
-  // --- Chapter split level ---
-  const splitGroup = createElement('div', 'admin-setting-group');
-  const splitLabel = createElement('label', 'admin-label', 'Chapter split level');
-  splitGroup.appendChild(splitLabel);
+    const splitSelect = createElement('select', 'admin-select');
+    splitSelect.id = splitId;
+    splitSelect.name = 'split_level';
+    splitSelect.autocomplete = 'off';
 
-  const splitSelect = createElement('select', 'admin-select');
-  const currentLevel = localStorage.getItem(SPLIT_LEVEL_KEY) || 'H1';
-  ['H1', 'H2', 'H3'].forEach((level) => {
-    const option = createElement('option', null, level);
-    option.value = level;
-    if (level === currentLevel) option.selected = true;
-    splitSelect.appendChild(option);
-  });
-  splitSelect.addEventListener('change', async () => {
-    localStorage.setItem(SPLIT_LEVEL_KEY, splitSelect.value);
-    try {
-      await saveSplitLevelConfig(splitSelect.value);
-    } catch (err) {
-      showError(splitGroup, `Failed to save config: ${err.message}`);
-    }
-  });
-  splitGroup.appendChild(splitSelect);
+    const currentLevel = localStorage.getItem(SPLIT_LEVEL_KEY) || 'H1';
+    ['H1', 'H2', 'H3'].forEach((level) => {
+      const option = createElement('option', null, level);
+      option.value = level;
+      option.selected = level === currentLevel;
+      splitSelect.appendChild(option);
+    });
+    splitGroup.appendChild(splitSelect);
 
-  splitGroup.appendChild(
-    createElement(
-      'p',
-      'admin-hint',
-      'Controls at which heading level the conversion pipeline splits chapters.'
-    )
-  );
+    splitGroup.appendChild(
+      createElement(
+        'p',
+        'admin-hint',
+        'Controls the heading level where the conversion pipeline splits chapters.'
+      )
+    );
 
-  section.appendChild(splitGroup);
+    const splitError = createInlineError();
+    splitGroup.appendChild(splitError);
 
-  // --- Repository override ---
-  const repoGroup = createElement('div', 'admin-setting-group');
-  repoGroup.appendChild(createElement('label', 'admin-label', 'Repository'));
+    splitSelect.addEventListener('change', async () => {
+      localStorage.setItem(SPLIT_LEVEL_KEY, splitSelect.value);
+      clearError(splitError);
 
-  const repoInputs = createElement('div', 'admin-input-group');
+      try {
+        await saveSplitLevelConfig(splitSelect.value);
+      } catch (error) {
+        showError(splitError, `Failed to save split level: ${error.message}`);
+      }
+    });
 
-  const ownerInput = document.createElement('input');
-  ownerInput.type = 'text';
-  ownerInput.placeholder = 'owner';
-  ownerInput.className = 'admin-text-input';
-  ownerInput.value = repo.owner;
-  repoInputs.appendChild(ownerInput);
+    section.appendChild(splitGroup);
 
-  repoInputs.appendChild(createElement('span', 'admin-separator', ' / '));
+    const repoGroup = createElement('div', 'admin-setting-group');
+    const repoLegend = createElement('h3', 'admin-subheading', 'Repository Override');
+    repoGroup.appendChild(repoLegend);
 
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.placeholder = 'repo';
-  nameInput.className = 'admin-text-input';
-  nameInput.value = repo.name;
-  repoInputs.appendChild(nameInput);
+    const repoForm = createElement('form', 'admin-form-grid');
 
-  const repoSaveBtn = createElement('button', 'btn-primary', 'Save');
-  repoSaveBtn.addEventListener('click', () => {
-    const o = ownerInput.value.trim();
-    const n = nameInput.value.trim();
-    if (o && n) {
-      saveRepo(o, n);
+    const ownerStack = createElement('div', 'admin-input-stack');
+    const ownerId = 'admin-repo-owner';
+    const ownerLabel = createElement('label', 'admin-label', 'Owner');
+    ownerLabel.htmlFor = ownerId;
+    const ownerInput = document.createElement('input');
+    ownerInput.id = ownerId;
+    ownerInput.type = 'text';
+    ownerInput.name = 'repo_owner';
+    ownerInput.placeholder = 'owner';
+    ownerInput.className = 'admin-text-input';
+    ownerInput.value = repo.owner;
+    ownerInput.autocomplete = 'off';
+    ownerInput.spellcheck = false;
+    ownerInput.autocapitalize = 'off';
+    ownerStack.appendChild(ownerLabel);
+    ownerStack.appendChild(ownerInput);
+
+    const nameStack = createElement('div', 'admin-input-stack');
+    const nameId = 'admin-repo-name';
+    const nameLabel = createElement('label', 'admin-label', 'Repository Name');
+    nameLabel.htmlFor = nameId;
+    const nameInput = document.createElement('input');
+    nameInput.id = nameId;
+    nameInput.type = 'text';
+    nameInput.name = 'repo_name';
+    nameInput.placeholder = 'pdf2book';
+    nameInput.className = 'admin-text-input';
+    nameInput.value = repo.name;
+    nameInput.autocomplete = 'off';
+    nameInput.spellcheck = false;
+    nameInput.autocapitalize = 'off';
+    nameStack.appendChild(nameLabel);
+    nameStack.appendChild(nameInput);
+
+    const repoActions = createElement('div', 'admin-inline-actions');
+    const repoSaveButton = createButton('primary', 'Save Repository');
+    repoSaveButton.type = 'submit';
+    repoActions.appendChild(repoSaveButton);
+
+    repoForm.appendChild(ownerStack);
+    repoForm.appendChild(nameStack);
+    repoForm.appendChild(repoActions);
+
+    const repoError = createInlineError();
+
+    repoForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      clearError(repoError);
+
+      const owner = ownerInput.value.trim();
+      const name = nameInput.value.trim();
+      if (!owner || !name) {
+        showError(repoError, 'Enter both the repository owner and repository name.');
+        if (!owner) {
+          ownerInput.focus();
+        } else {
+          nameInput.focus();
+        }
+        return;
+      }
+
+      saveRepo(owner, name);
       renderDashboard(dashboardContainer);
-    }
-  });
-  repoInputs.appendChild(repoSaveBtn);
+    });
 
-  repoGroup.appendChild(repoInputs);
-  section.appendChild(repoGroup);
+    repoGroup.appendChild(repoForm);
+    repoGroup.appendChild(repoError);
+    section.appendChild(repoGroup);
 
-  // --- PAT management ---
-  const patGroup = createElement('div', 'admin-setting-group');
-  patGroup.appendChild(
-    createElement('label', 'admin-label', 'Personal Access Token')
-  );
+    const patGroup = createElement('div', 'admin-setting-group');
+    patGroup.appendChild(createElement('h3', 'admin-subheading', 'Personal Access Token'));
 
-  const patBtnGroup = createElement('div', 'admin-btn-group');
-
-  const updatePatBtn = createElement('button', 'btn-secondary', 'Update PAT');
-  updatePatBtn.addEventListener('click', () => {
-    localStorage.removeItem(PAT_STORAGE_KEY);
-    renderAuthView(dashboardContainer);
-  });
-  patBtnGroup.appendChild(updatePatBtn);
-
-  const clearPatBtn = createElement('button', 'btn-danger', 'Clear PAT');
-  clearPatBtn.addEventListener('click', () => {
-    if (
-      window.confirm('Remove your stored PAT? You will need to re-enter it.')
-    ) {
+    const patActions = createElement('div', 'admin-btn-group');
+    const updatePatButton = createButton('secondary', 'Update PAT');
+    updatePatButton.addEventListener('click', () => {
       localStorage.removeItem(PAT_STORAGE_KEY);
       renderAuthView(dashboardContainer);
+    });
+
+    const clearPatButton = createButton('danger', 'Clear PAT');
+    clearPatButton.addEventListener('click', () => {
+      if (window.confirm('Remove the stored PAT? You will need to enter it again.')) {
+        localStorage.removeItem(PAT_STORAGE_KEY);
+        renderAuthView(dashboardContainer);
+      }
+    });
+
+    patActions.appendChild(updatePatButton);
+    patActions.appendChild(clearPatButton);
+    patGroup.appendChild(patActions);
+    section.appendChild(patGroup);
+
+    return section;
+  }
+
+  function initAdmin(container) {
+    if (!container) {
+      throw new Error('initAdmin: container element is required');
     }
-  });
-  patBtnGroup.appendChild(clearPatBtn);
 
-  patGroup.appendChild(patBtnGroup);
-  section.appendChild(patGroup);
+    container.replaceChildren();
 
-  return section;
-}
+    const wrapper = createElement('div', 'admin-panel');
+    container.appendChild(wrapper);
 
-// ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
-
-function initAdmin(container) {
-  if (!container) {
-    throw new Error('initAdmin: container element is required');
+    if (localStorage.getItem(PAT_STORAGE_KEY)) {
+      renderDashboard(wrapper);
+    } else {
+      renderAuthView(wrapper);
+    }
   }
 
-  container.replaceChildren();
+  window.initAdmin = initAdmin;
 
-  const wrapper = createElement('div', 'admin-panel');
-  container.appendChild(wrapper);
-
-  const pat = localStorage.getItem(PAT_STORAGE_KEY);
-  if (pat) {
-    renderDashboard(wrapper);
-  } else {
-    renderAuthView(wrapper);
+  const adminView = document.getElementById('admin-view');
+  if (adminView) {
+    initAdmin(adminView);
   }
-}
-
-window.initAdmin = initAdmin;
-
-// Auto-initialize when loaded as a script tag by app.js
-const adminView = document.getElementById('admin-view');
-if (adminView) {
-  initAdmin(adminView);
-}
+})();

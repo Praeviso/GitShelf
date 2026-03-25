@@ -38,6 +38,7 @@ jobs:
         run: |
           HASH=$(git rev-parse --short HEAD)
           sed -i "s|assets/style.css|assets/style.css?v=$HASH|g" docs/index.html
+          sed -i "s|assets/shared.js|assets/shared.js?v=$HASH|g" docs/index.html
           sed -i "s|assets/app.js|assets/app.js?v=$HASH|g" docs/index.html
 
       - name: Upload artifact

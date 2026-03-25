@@ -131,6 +131,11 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
@@ -143,6 +148,13 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 img {
@@ -158,6 +170,12 @@ a {
 
 a:hover {
   color: var(--color-accent-hover);
+}
+
+a,
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ==========================================================================
@@ -258,8 +276,8 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   font-size: 18px;
   color: var(--color-text-secondary);
   text-decoration: none;
@@ -286,6 +304,7 @@ a:hover {
   border-right: 1px solid var(--color-border);
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   z-index: 210;
   transform: translateX(-100%);
   visibility: hidden;
@@ -359,13 +378,14 @@ a:hover {
 
 .sidebar-link {
   flex: 1;
-  display: block;
+  display: flex;
+  align-items: center;
   padding: var(--space-2) var(--space-4);
   color: var(--color-text-primary);
   text-decoration: none;
   font-weight: 400;
   transition: background-color var(--transition-fast), color var(--transition-fast);
-  min-height: 36px;
+  min-height: 44px;
   line-height: 1.4;
 }
 
@@ -389,9 +409,9 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-left: var(--space-2);
+  width: 44px;
+  height: 44px;
+  margin-left: 0;
   padding: 0;
   background: none;
   border: none;
@@ -425,8 +445,8 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   font-size: 20px;
   color: var(--color-text-primary);
@@ -453,6 +473,7 @@ a:hover {
   background-color: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  overscroll-behavior: contain;
 }
 
 .sidebar-backdrop.visible {
@@ -507,6 +528,15 @@ a:hover {
   font-family: var(--font-ui);
   font-size: 16px;
   padding: var(--space-16) var(--space-4);
+}
+
+.bookshelf-error,
+.content-error {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: rgba(197, 48, 48, 0.1);
+  color: var(--color-error);
+  font-family: var(--font-ui);
 }
 
 /* --- Book Card --- */
@@ -608,6 +638,13 @@ a:hover {
 .reader-content h4 {
   color: var(--color-text-heading);
   font-weight: 600;
+}
+
+.reader-content h1[id],
+.reader-content h2[id],
+.reader-content h3[id],
+.reader-content h4[id] {
+  scroll-margin-top: calc(var(--top-bar-height) + var(--space-4));
 }
 
 .reader-content h1 {
@@ -771,6 +808,10 @@ a:hover {
   transition: background-color var(--transition-fast);
 }
 
+.chapter-nav-placeholder {
+  min-height: 72px;
+}
+
 .chapter-nav-link:hover {
   background-color: var(--color-bg-subtle);
 }
@@ -809,8 +850,8 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   padding: var(--space-2);
   background: none;
   border: none;
@@ -877,11 +918,16 @@ a:hover {
   border: none;
   cursor: pointer;
   transition: background-color var(--transition-fast), transform var(--transition-fast);
-  min-height: 36px;
+  min-height: 44px;
 }
 
 .btn:active {
   transform: scale(0.98);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .btn-primary {
@@ -1032,6 +1078,20 @@ a:hover {
   margin: 0 auto;
 }
 
+.admin-page-title {
+  font-family: var(--font-ui);
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-text-heading);
+  margin: 0 0 var(--space-3) 0;
+}
+
+.admin-section-intro {
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-6) 0;
+}
+
 .admin-auth {
   max-width: 480px;
   margin: var(--space-8) auto;
@@ -1068,9 +1128,30 @@ a:hover {
   margin-bottom: var(--space-3);
 }
 
+.admin-form,
+.admin-form-grid {
+  margin-top: var(--space-4);
+}
+
+.admin-form-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.admin-input-stack {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-inline-actions {
+  display: flex;
+  align-items: end;
+}
+
 .admin-pat-input,
 .admin-text-input {
   flex: 1;
+  width: 100%;
   padding: var(--space-2) var(--space-3);
   font-family: var(--font-ui);
   font-size: 14px;
@@ -1095,7 +1176,7 @@ a:hover {
   min-height: 1em;
 }
 
-.admin-link {
+.admin-text-link {
   color: var(--color-accent);
   text-decoration: underline;
 }
@@ -1116,6 +1197,7 @@ a:hover {
 
 .admin-file-input {
   display: block;
+  width: 100%;
   margin-bottom: var(--space-3);
   font-family: var(--font-ui);
   font-size: 14px;
@@ -1127,9 +1209,10 @@ a:hover {
   font-family: var(--font-ui);
   font-size: 14px;
   margin-top: var(--space-3);
+  font-variant-numeric: tabular-nums;
 }
 
-.upload-progress--uploading {
+.upload-progress--info {
   background-color: var(--color-bg-subtle);
   color: var(--color-text-secondary);
 }
@@ -1142,6 +1225,11 @@ a:hover {
 .upload-progress--error {
   background-color: rgba(197, 48, 48, 0.1);
   color: var(--color-error);
+}
+
+.upload-progress-link {
+  color: inherit;
+  text-decoration: underline;
 }
 
 .admin-books {
@@ -1159,6 +1247,7 @@ a:hover {
   border-collapse: collapse;
   font-family: var(--font-ui);
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-table th,
@@ -1180,6 +1269,16 @@ a:hover {
   color: var(--color-text-primary);
 }
 
+.admin-table-number {
+  white-space: nowrap;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .admin-modal-overlay {
   position: fixed;
   inset: 0;
@@ -1190,6 +1289,7 @@ a:hover {
   background-color: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  overscroll-behavior: contain;
 }
 
 .admin-modal {
@@ -1201,7 +1301,7 @@ a:hover {
   box-shadow: var(--shadow-elevated);
 }
 
-.admin-modal h3 {
+.admin-modal h2 {
   font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 600;
@@ -1264,6 +1364,14 @@ a:hover {
   margin-bottom: var(--space-4);
 }
 
+.admin-subheading {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-heading);
+  margin: 0 0 var(--space-3) 0;
+}
+
 .admin-label {
   display: block;
   font-family: var(--font-ui);
@@ -1274,6 +1382,7 @@ a:hover {
 }
 
 .admin-select {
+  width: 100%;
   padding: var(--space-2) var(--space-3);
   font-family: var(--font-ui);
   font-size: 14px;
@@ -1286,6 +1395,7 @@ a:hover {
 
 .admin-select:focus {
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-subtle);
 }
 
 .admin-separator {
@@ -1327,6 +1437,14 @@ a:hover {
 
   .book-card {
     max-width: none;
+  }
+
+  .admin-input-group,
+  .admin-actions,
+  .admin-btn-group,
+  .admin-inline-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

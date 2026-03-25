@@ -1,0 +1,10 @@
+{
+  "name": "pdf2book",
+  "private": true,
+  "scripts": {
+    "test:frontend": "node --test tests/frontend/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^29.0.1"
+  }
+}

@@ -21,16 +21,16 @@
   <!-- Top bar -->
   <header class="top-bar">
     <div class="top-bar-left">
-      <button class="sidebar-toggle" aria-label="Toggle sidebar" style="display:none;">&#9776;</button>
+      <button class="sidebar-toggle" type="button" aria-label="Open table of contents" hidden>&#9776;</button>
       <a href="#/" class="top-bar-title">PDF2Book</a>
       <span class="top-bar-breadcrumb"></span>
     </div>
     <div class="top-bar-right">
-      <button class="theme-toggle" aria-label="Toggle theme">
-        <span class="theme-icon-light">&#9728;&#65039;</span>
-        <span class="theme-icon-dark">&#127769;</span>
+      <button class="theme-toggle" type="button" aria-label="Switch to dark theme">
+        <span class="theme-icon-light" aria-hidden="true">&#9728;&#65039;</span>
+        <span class="theme-icon-dark" aria-hidden="true">&#127769;</span>
       </button>
-      <a href="#/" class="top-bar-bookshelf-link" style="display:none;">Bookshelf</a>
+      <a href="#/" class="top-bar-bookshelf-link" hidden>Bookshelf</a>
       <a href="#/admin" class="admin-link" aria-label="Settings">&#9881;</a>
     </div>
   </header>
@@ -43,7 +43,7 @@
   </aside>
 
   <!-- Sidebar backdrop (mobile) -->
-  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
 
   <!-- Main content area -->
   <main id="main-content" class="main-content">
@@ -59,6 +59,7 @@
   <script src="https://cdn.jsdelivr.net/npm/markdown-it-texmath/texmath.min.js"></script>
 
   <!-- App scripts -->
+  <script src="assets/shared.js"></script>
   <script src="assets/app.js"></script>
   <!-- admin.js is lazy-loaded by app.js when #/admin is visited -->
 </body>

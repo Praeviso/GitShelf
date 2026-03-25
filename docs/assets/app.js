@@ -4,112 +4,108 @@
 (function () {
   'use strict';
 
-  // ---------------------------------------------------------------------------
-  // Constants
-  // ---------------------------------------------------------------------------
+  const shared = window.PDF2BookShared;
+  if (!shared) {
+    throw new Error('shared.js must be loaded before app.js.');
+  }
 
   const THEME_KEY = 'theme';
   const SHIKI_CDN = 'https://cdn.jsdelivr.net/npm/shiki/+esm';
+  const DESKTOP_BREAKPOINT = 1024;
 
   // Cache-bust version: extracted from app.js?v=xxx injected by deploy workflow.
   // Data files (manifest, toc, chapters) use this to bypass CDN cache after deploy.
   const CACHE_VERSION = (() => {
-    const s = document.querySelector('script[src*="app.js"]');
-    return s?.src?.match(/\?v=([^&]+)/)?.[1] || '';
+    const scriptElement = document.querySelector('script[src*="app.js"]');
+    return scriptElement && scriptElement.src
+      ? (scriptElement.src.match(/\?v=([^&]+)/) || [])[1] || ''
+      : '';
   })();
+
+  const state = {
+    currentBookId: null,
+    currentSlug: null,
+    tocCache: Object.create(null),
+    manifestCache: null,
+    shikiHighlighter: null,
+    shikiLoading: false,
+    adminLoaded: false,
+    md: null,
+    lastSidebarTrigger: null,
+  };
+
+  let els = {};
 
   function cacheBust(url) {
     return CACHE_VERSION ? `${url}?v=${CACHE_VERSION}` : url;
   }
 
-  // ---------------------------------------------------------------------------
-  // Module state
-  // ---------------------------------------------------------------------------
-
-  let currentBookId = null;
-  let currentSlug = null;
-  let tocCache = {};
-  let manifestCache = null;
-  let shikiHighlighter = null;
-  let shikiLoading = false;
-  let adminLoaded = false;
-  let md = null;
-
-  // ---------------------------------------------------------------------------
-  // DOM references (resolved once on init)
-  // ---------------------------------------------------------------------------
-
-  let els = {};
-
   function resolveElements() {
     els = {
-      bookshelfView: document.getElementById('bookshelf-view'),
-      readerView: document.getElementById('reader-view'),
       adminView: document.getElementById('admin-view'),
-      sidebar: document.getElementById('sidebar'),
-      sidebarNav: document.querySelector('.sidebar-nav'),
-      sidebarBackdrop: document.getElementById('sidebar-backdrop'),
-      sidebarToggle: document.querySelector('.sidebar-toggle'),
       breadcrumb: document.querySelector('.top-bar-breadcrumb'),
       bookshelfLink: document.querySelector('.top-bar-bookshelf-link'),
-      themeToggle: document.querySelector('.theme-toggle'),
-      themeIconLight: document.querySelector('.theme-icon-light'),
+      bookshelfView: document.getElementById('bookshelf-view'),
+      mainContent: document.querySelector('.main-content'),
+      readerView: document.getElementById('reader-view'),
+      sidebar: document.getElementById('sidebar'),
+      sidebarBackdrop: document.getElementById('sidebar-backdrop'),
+      sidebarNav: document.querySelector('.sidebar-nav'),
+      sidebarToggle: document.querySelector('.sidebar-toggle'),
       themeIconDark: document.querySelector('.theme-icon-dark'),
+      themeIconLight: document.querySelector('.theme-icon-light'),
+      themeToggle: document.querySelector('.theme-toggle'),
     };
   }
-
-  // ---------------------------------------------------------------------------
-  // Public API — initialization
-  // ---------------------------------------------------------------------------
 
   function init() {
     resolveElements();
     initMarkdownIt();
     initTheme();
-    initRouter();
     initSidebar();
     initKeyboard();
+    initRouter();
   }
-
-  // ---------------------------------------------------------------------------
-  // Markdown-it setup
-  // ---------------------------------------------------------------------------
 
   function initMarkdownIt() {
     if (typeof markdownit === 'undefined') {
-      throw new Error('markdown-it is not loaded. Ensure the CDN script is included before app.js.');
+      throw new Error(
+        'markdown-it is not loaded. Ensure the CDN script is included before app.js.'
+      );
     }
-    md = markdownit({
+
+    state.md = markdownit({
       html: false,
       linkify: true,
       typographer: true,
     });
 
-    // texmath plugin for KaTeX math rendering
     if (typeof texmath !== 'undefined' && typeof katex !== 'undefined') {
-      md.use(texmath, {
+      state.md.use(texmath, {
         engine: katex,
         delimiters: 'dollars',
       });
     }
 
-    // Add heading anchor IDs
-    const originalHeadingOpen = md.renderer.rules.heading_open ||
+    const originalHeadingOpen =
+      state.md.renderer.rules.heading_open ||
       function (tokens, idx, options, _env, self) {
         return self.renderToken(tokens, idx, options);
       };
 
-    md.renderer.rules.heading_open = function (tokens, idx, options, env, self) {
+    state.md.renderer.rules.heading_open = function (tokens, idx, options, env, self) {
       const token = tokens[idx];
       const contentToken = tokens[idx + 1];
+
       if (contentToken && contentToken.children) {
         const text = contentToken.children
-          .filter(t => t.type === 'text' || t.type === 'code_inline')
-          .map(t => t.content)
+          .filter((child) => child.type === 'text' || child.type === 'code_inline')
+          .map((child) => child.content)
           .join('');
-        const id = slugify(text);
-        token.attrSet('id', id);
+
+        token.attrSet('id', slugify(text));
       }
+
       return originalHeadingOpen(tokens, idx, options, env, self);
     };
   }
@@ -123,13 +119,40 @@
       .replace(/^-+|-+$/g, '');
   }
 
-  // ---------------------------------------------------------------------------
-  // Hash Router
-  // ---------------------------------------------------------------------------
-
   function initRouter() {
     window.addEventListener('hashchange', handleRoute);
     handleRoute();
+  }
+
+  function parseRoute(hash) {
+    const rawPath = hash.split('#')[0];
+    const path = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
+    const anchor = hash.includes('#') ? hash.slice(hash.indexOf('#') + 1) : null;
+
+    if (path === '/') {
+      return { type: 'bookshelf' };
+    }
+
+    if (path === '/admin') {
+      return { type: 'admin' };
+    }
+
+    const chapterMatch = path.match(/^\/([^/]+)\/chapters\/([^/]+)$/);
+    if (chapterMatch) {
+      return {
+        type: 'chapter',
+        bookId: chapterMatch[1],
+        slug: chapterMatch[2],
+        anchor,
+      };
+    }
+
+    const bookMatch = path.match(/^\/([^/]+)$/);
+    if (bookMatch) {
+      return { type: 'book', bookId: bookMatch[1] };
+    }
+
+    return { type: 'bookshelf' };
   }
 
   function handleRoute() {
@@ -140,112 +163,230 @@
 
     if (route.type === 'bookshelf') {
       showBookshelf();
-    } else if (route.type === 'admin') {
+      return;
+    }
+
+    if (route.type === 'admin') {
       showAdmin();
-    } else if (route.type === 'chapter') {
-      showChapter(route.bookId, route.slug, route.anchor);
-    } else if (route.type === 'book') {
+      return;
+    }
+
+    if (route.type === 'book') {
       showBookOverview(route.bookId);
-    }
-  }
-
-  function parseRoute(hash) {
-    // Normalize: remove trailing slash
-    const path = hash.endsWith('/') && hash.length > 1 ? hash.slice(0, -1) : hash;
-
-    if (path === '/') {
-      return { type: 'bookshelf' };
-    }
-    if (path === '/admin') {
-      return { type: 'admin' };
+      return;
     }
 
-    // /<book-id>/chapters/<slug>
-    const chapterMatch = path.match(/^\/([^/]+)\/chapters\/([^/]+)$/);
-    if (chapterMatch) {
-      // Anchors within hash routing appear after a second # in location.hash
-      const anchorIdx = location.hash.indexOf('#', 1);
-      const anchor = anchorIdx !== -1 ? location.hash.slice(anchorIdx + 1) : null;
-      return { type: 'chapter', bookId: chapterMatch[1], slug: chapterMatch[2], anchor };
+    if (route.type === 'chapter') {
+      showChapter(route.bookId, route.slug, route.anchor);
     }
-
-    // /<book-id>
-    const bookMatch = path.match(/^\/([^/]+)$/);
-    if (bookMatch) {
-      return { type: 'book', bookId: bookMatch[1] };
-    }
-
-    // Fallback: bookshelf
-    return { type: 'bookshelf' };
   }
 
   function hideAllViews() {
     els.bookshelfView.style.display = 'none';
     els.readerView.style.display = 'none';
     els.adminView.style.display = 'none';
-    els.sidebar.classList.remove('open', 'visible');
-    els.sidebarBackdrop.classList.remove('visible');
-    document.querySelector('.main-content').classList.remove('with-sidebar');
+    setSidebarRouteVisible(false);
+    closeSidebar({ restoreFocus: false });
   }
-
-  // ---------------------------------------------------------------------------
-  // Top bar updates
-  // ---------------------------------------------------------------------------
 
   function updateTopBar(options) {
-    const { showSidebarToggle = false, showBookshelfLink = false, breadcrumb = '' } = options;
-    els.sidebarToggle.style.display = showSidebarToggle ? '' : 'none';
-    els.bookshelfLink.style.display = showBookshelfLink ? '' : 'none';
+    const config = options || {};
+    const breadcrumb = config.breadcrumb || '';
+    const showBookshelfLink = Boolean(config.showBookshelfLink);
+    const showSidebarToggle = Boolean(config.showSidebarToggle);
+
     els.breadcrumb.textContent = breadcrumb;
+    els.bookshelfLink.hidden = !showBookshelfLink;
+    els.sidebarToggle.hidden = !showSidebarToggle;
+
+    syncSidebarState();
   }
 
-  // ---------------------------------------------------------------------------
-  // Bookshelf View
-  // ---------------------------------------------------------------------------
+  function setDocumentTitle(parts) {
+    const titleParts = (parts || []).filter(Boolean);
+    titleParts.push('PDF2Book');
+    document.title = titleParts.join(' · ');
+  }
+
+  function isDesktopViewport() {
+    return window.innerWidth >= DESKTOP_BREAKPOINT;
+  }
+
+  function setSidebarRouteVisible(visible) {
+    els.sidebar.classList.toggle('visible', Boolean(visible));
+    els.mainContent.classList.toggle('with-sidebar', Boolean(visible));
+    syncSidebarState();
+  }
+
+  function openSidebar(options) {
+    if (!els.sidebar.classList.contains('visible')) {
+      return;
+    }
+
+    const config = options || {};
+    const shouldMoveFocus = config.focusSidebar !== false;
+
+    els.sidebar.classList.add('open');
+    syncSidebarState();
+
+    if (shouldMoveFocus && !isDesktopViewport()) {
+      const focusableElements = shared.getFocusableElements(els.sidebarNav);
+      if (focusableElements.length > 0) {
+        focusableElements[0].focus();
+      } else {
+        els.sidebar.focus();
+      }
+    }
+  }
+
+  function closeSidebar(options) {
+    const config = options || {};
+    const shouldRestoreFocus = Boolean(config.restoreFocus);
+
+    els.sidebar.classList.remove('open');
+    syncSidebarState();
+
+    if (
+      shouldRestoreFocus &&
+      state.lastSidebarTrigger &&
+      typeof state.lastSidebarTrigger.focus === 'function'
+    ) {
+      state.lastSidebarTrigger.focus();
+    }
+  }
+
+  function syncSidebarState() {
+    const routeVisible = els.sidebar.classList.contains('visible');
+    const expanded = routeVisible && (isDesktopViewport() || els.sidebar.classList.contains('open'));
+    const backdropVisible = routeVisible && !isDesktopViewport() && els.sidebar.classList.contains('open');
+
+    els.sidebarBackdrop.hidden = !backdropVisible;
+    els.sidebarBackdrop.classList.toggle('visible', backdropVisible);
+    els.sidebar.setAttribute('aria-hidden', String(!expanded));
+    els.sidebar.setAttribute('tabindex', '-1');
+    shared.setExpandedState(els.sidebarToggle, expanded, els.sidebar.id);
+  }
+
+  function initSidebar() {
+    els.sidebarToggle.setAttribute('aria-controls', els.sidebar.id);
+    shared.setExpandedState(els.sidebarToggle, false, els.sidebar.id);
+
+    els.sidebarToggle.addEventListener('click', () => {
+      state.lastSidebarTrigger = els.sidebarToggle;
+
+      if (els.sidebar.classList.contains('open')) {
+        closeSidebar({ restoreFocus: true });
+      } else {
+        openSidebar({ focusSidebar: true });
+      }
+    });
+
+    els.sidebarBackdrop.addEventListener('click', () => {
+      closeSidebar({ restoreFocus: true });
+    });
+
+    els.sidebarNav.addEventListener('click', (event) => {
+      const toggleButton = event.target.closest('.sidebar-toggle-btn');
+      if (toggleButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const item = toggleButton.closest('.sidebar-item');
+        if (!item) return;
+
+        const isCollapsed = item.classList.toggle('collapsed');
+        shared.setExpandedState(toggleButton, !isCollapsed, toggleButton.getAttribute('aria-controls'));
+        return;
+      }
+
+      if (!isDesktopViewport()) {
+        const link = event.target.closest('a');
+        if (link) {
+          closeSidebar({ restoreFocus: false });
+        }
+      }
+    });
+
+    window.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (!els.sidebar.classList.contains('open') || isDesktopViewport()) return;
+
+      event.preventDefault();
+      closeSidebar({ restoreFocus: true });
+    });
+
+    window.addEventListener('resize', () => {
+      if (isDesktopViewport()) {
+        els.sidebar.classList.remove('open');
+      }
+      syncSidebarState();
+    });
+  }
 
   async function showBookshelf() {
-    currentBookId = null;
-    currentSlug = null;
+    state.currentBookId = null;
+    state.currentSlug = null;
 
-    updateTopBar({ showSidebarToggle: false, showBookshelfLink: false, breadcrumb: '' });
-    els.sidebar.classList.remove('visible');
+    updateTopBar({
+      showSidebarToggle: false,
+      showBookshelfLink: false,
+      breadcrumb: '',
+    });
+    setDocumentTitle(['Bookshelf']);
     els.bookshelfView.style.display = 'block';
 
     try {
       const manifest = await fetchManifest();
-      renderBookshelf(manifest.books);
-    } catch (err) {
+      renderBookshelf(manifest.books || []);
+    } catch (error) {
       els.bookshelfView.replaceChildren();
-      const errEl = document.createElement('div');
-      errEl.className = 'bookshelf-error';
-      errEl.textContent = `Failed to load bookshelf: ${err.message}`;
-      els.bookshelfView.appendChild(errEl);
+
+      const errorElement = document.createElement('div');
+      errorElement.className = 'bookshelf-error';
+      errorElement.textContent = `Failed to load bookshelf: ${error.message}`;
+
+      els.bookshelfView.appendChild(errorElement);
     }
   }
 
   async function fetchManifest() {
-    if (manifestCache) return manifestCache;
-    const res = await fetch(cacheBust('manifest.json'));
-    if (!res.ok) {
-      throw new Error(`Failed to load manifest: ${res.status} ${MANIFEST_URL}`);
+    if (state.manifestCache) return state.manifestCache;
+
+    const url = 'manifest.json';
+    const response = await fetch(cacheBust(url));
+    if (!response.ok) {
+      throw new Error(`Failed to load manifest: ${response.status} ${url}`);
     }
-    manifestCache = await res.json();
-    return manifestCache;
+
+    state.manifestCache = await response.json();
+    return state.manifestCache;
   }
 
   function renderBookshelf(books) {
     els.bookshelfView.replaceChildren();
 
+    const container = document.createElement('section');
+    container.className = 'bookshelf-container';
+
+    const heading = document.createElement('h1');
+    heading.className = 'bookshelf-heading';
+    heading.textContent = 'Bookshelf';
+    container.appendChild(heading);
+
     if (!books || books.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'bookshelf-empty';
-      const heading = document.createElement('h2');
-      heading.textContent = 'No books yet';
-      const msg = document.createElement('p');
-      msg.textContent = 'Upload a PDF via the admin panel to get started.';
-      empty.appendChild(heading);
-      empty.appendChild(msg);
-      els.bookshelfView.appendChild(empty);
+
+      const emptyHeading = document.createElement('h2');
+      emptyHeading.textContent = 'No books yet';
+
+      const message = document.createElement('p');
+      message.textContent = 'Upload a PDF via the admin panel to get started.';
+
+      empty.appendChild(emptyHeading);
+      empty.appendChild(message);
+      container.appendChild(empty);
+      els.bookshelfView.appendChild(container);
       return;
     }
 
@@ -259,6 +400,7 @@
 
       const cover = document.createElement('div');
       cover.className = 'book-card-cover';
+
       const coverLetter = document.createElement('span');
       coverLetter.className = 'book-card-cover-letter';
       coverLetter.textContent = book.title ? book.title.charAt(0) : '?';
@@ -267,12 +409,13 @@
       const info = document.createElement('div');
       info.className = 'book-card-info';
 
-      const title = document.createElement('h3');
+      const title = document.createElement('h2');
       title.className = 'book-card-title';
       title.textContent = book.title;
 
       const meta = document.createElement('div');
       meta.className = 'book-card-meta';
+
       const parts = [];
       if (typeof book.chapters_count === 'number') {
         parts.push(`${book.chapters_count} chapter${book.chapters_count !== 1 ? 's' : ''}`);
@@ -280,7 +423,7 @@
       if (typeof book.word_count === 'number') {
         parts.push(`${formatWordCount(book.word_count)} words`);
       }
-      meta.textContent = parts.join(' \u00b7 ');
+      meta.textContent = parts.join(' · ');
 
       info.appendChild(title);
       info.appendChild(meta);
@@ -289,27 +432,28 @@
       grid.appendChild(card);
     }
 
-    els.bookshelfView.appendChild(grid);
+    container.appendChild(grid);
+    els.bookshelfView.appendChild(container);
   }
 
   function formatWordCount(count) {
     if (count >= 1000) {
       return `${Math.round(count / 1000)}k`;
     }
+
     return String(count);
   }
 
-  // ---------------------------------------------------------------------------
-  // Book Overview View
-  // ---------------------------------------------------------------------------
-
   async function showBookOverview(bookId) {
-    currentBookId = bookId;
-    currentSlug = null;
+    state.currentBookId = bookId;
+    state.currentSlug = null;
 
-    updateTopBar({ showSidebarToggle: true, showBookshelfLink: true, breadcrumb: '' });
-    els.sidebar.classList.add('visible');
-    document.querySelector('.main-content').classList.add('with-sidebar');
+    updateTopBar({
+      showSidebarToggle: true,
+      showBookshelfLink: true,
+      breadcrumb: '',
+    });
+    setSidebarRouteVisible(true);
     els.readerView.style.display = 'block';
 
     try {
@@ -323,25 +467,27 @@
         showBookshelfLink: true,
         breadcrumb: tocData.title || bookId,
       });
+      setDocumentTitle([tocData.title || bookId]);
 
       renderSidebar(bookId, tocData, null);
       renderMarkdownContent(readmeText);
-    } catch (err) {
-      renderContentError(`Failed to load book overview: ${err.message}`);
+      window.scrollTo(0, 0);
+    } catch (error) {
+      setDocumentTitle([bookId]);
+      renderContentError(`Failed to load book overview: ${error.message}`);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Chapter Reader View
-  // ---------------------------------------------------------------------------
-
   async function showChapter(bookId, slug, anchor) {
-    currentBookId = bookId;
-    currentSlug = slug;
+    state.currentBookId = bookId;
+    state.currentSlug = slug;
 
-    updateTopBar({ showSidebarToggle: true, showBookshelfLink: true, breadcrumb: '' });
-    els.sidebar.classList.add('visible');
-    document.querySelector('.main-content').classList.add('with-sidebar');
+    updateTopBar({
+      showSidebarToggle: true,
+      showBookshelfLink: true,
+      breadcrumb: '',
+    });
+    setSidebarRouteVisible(true);
     els.readerView.style.display = 'block';
 
     try {
@@ -350,67 +496,74 @@
         fetchText(`books/${bookId}/chapters/${slug}.md`),
       ]);
 
+      const currentChapter = flattenChapters(tocData.children || []).find(
+        (chapter) => chapter.slug === slug && !chapter.anchor
+      );
+
       updateTopBar({
         showSidebarToggle: true,
         showBookshelfLink: true,
         breadcrumb: tocData.title || bookId,
       });
+      setDocumentTitle([
+        currentChapter ? currentChapter.title : slug,
+        tocData.title || bookId,
+      ]);
 
       renderSidebar(bookId, tocData, slug);
       renderMarkdownContent(chapterText);
+      renderChapterNav(bookId, tocData, slug);
 
-      // Scroll to anchor if provided, otherwise to top
       if (anchor) {
-        requestAnimationFrame(() => {
-          const target = document.getElementById(anchor);
-          if (target) {
-            target.scrollIntoView({ behavior: 'smooth' });
-          }
-        });
+        scrollToAnchor(anchor);
       } else {
         window.scrollTo(0, 0);
       }
-
-      renderChapterNav(bookId, tocData, slug);
-    } catch (err) {
-      renderContentError(`Failed to load chapter: ${err.message}`);
+    } catch (error) {
+      setDocumentTitle([bookId]);
+      renderContentError(`Failed to load chapter: ${error.message}`);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Fetch helpers
-  // ---------------------------------------------------------------------------
+  function scrollToAnchor(anchor) {
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById(anchor);
+      if (!target) return;
+
+      target.scrollIntoView({
+        behavior: shared.getScrollBehavior(window),
+        block: 'start',
+      });
+    });
+  }
 
   async function fetchToc(bookId) {
-    if (tocCache[bookId]) return tocCache[bookId];
+    if (state.tocCache[bookId]) return state.tocCache[bookId];
+
     const url = `books/${bookId}/toc.json`;
-    const res = await fetch(cacheBust(url));
-    if (!res.ok) {
-      throw new Error(`Failed to load table of contents: ${res.status} ${url}`);
+    const response = await fetch(cacheBust(url));
+    if (!response.ok) {
+      throw new Error(`Failed to load table of contents: ${response.status} ${url}`);
     }
-    const data = await res.json();
-    tocCache[bookId] = data;
+
+    const data = await response.json();
+    state.tocCache[bookId] = data;
     return data;
   }
 
   async function fetchText(url) {
-    const res = await fetch(cacheBust(url));
-    if (!res.ok) {
-      throw new Error(`Failed to load ${url}: ${res.status}`);
+    const response = await fetch(cacheBust(url));
+    if (!response.ok) {
+      throw new Error(`Failed to load ${url}: ${response.status}`);
     }
-    return res.text();
+
+    return response.text();
   }
 
-  // ---------------------------------------------------------------------------
-  // Markdown rendering
-  // ---------------------------------------------------------------------------
-
   function renderMarkdownContent(text) {
-    const rendered = md.render(text);
+    const rendered = state.md.render(text);
     const wrapper = document.createElement('article');
     wrapper.className = 'reader-content';
-    // markdown-it is configured with html:false, so the output is safe from
-    // raw HTML injection. insertAdjacentHTML is used per the project spec.
     wrapper.insertAdjacentHTML('afterbegin', rendered);
     els.readerView.replaceChildren(wrapper);
     highlightCodeBlocks(wrapper);
@@ -418,15 +571,13 @@
 
   function renderContentError(message) {
     els.readerView.replaceChildren();
-    const errEl = document.createElement('div');
-    errEl.className = 'content-error';
-    errEl.textContent = message;
-    els.readerView.appendChild(errEl);
-  }
 
-  // ---------------------------------------------------------------------------
-  // Code syntax highlighting (shiki, async)
-  // ---------------------------------------------------------------------------
+    const errorElement = document.createElement('div');
+    errorElement.className = 'content-error';
+    errorElement.textContent = message;
+
+    els.readerView.appendChild(errorElement);
+  }
 
   async function highlightCodeBlocks(container) {
     const codeBlocks = container.querySelectorAll('pre code');
@@ -436,127 +587,137 @@
       const highlighter = await getShikiHighlighter();
       if (!highlighter) return;
 
-      const loadedLangs = highlighter.getLoadedLanguages();
+      const loadedLanguages = highlighter.getLoadedLanguages();
 
       for (const block of codeBlocks) {
-        const langClass = Array.from(block.classList).find(c => c.startsWith('language-'));
-        const lang = langClass ? langClass.replace('language-', '') : 'text';
+        const languageClass = Array.from(block.classList).find((className) =>
+          className.startsWith('language-')
+        );
+        const language = languageClass ? languageClass.replace('language-', '') : 'text';
         const code = block.textContent;
 
         try {
-          if (!loadedLangs.includes(lang) && lang !== 'text') {
+          if (!loadedLanguages.includes(language) && language !== 'text') {
             continue;
           }
+
           const highlighted = highlighter.codeToHtml(code, {
-            lang,
-            themes: { light: 'github-light', dark: 'github-dark' },
+            lang: language,
+            themes: {
+              light: 'github-light',
+              dark: 'github-dark',
+            },
           });
-          // Replace the <pre> element with shiki's rendered output.
-          // shiki output is a trusted, deterministic HTML structure from the
-          // library itself (not user input), so insertAdjacentHTML is safe here.
-          const pre = block.parentElement;
-          if (pre && pre.tagName === 'PRE') {
+
+          const preElement = block.parentElement;
+          if (preElement && preElement.tagName === 'PRE') {
             const temp = document.createElement('div');
             temp.insertAdjacentHTML('afterbegin', highlighted);
             const newPre = temp.querySelector('pre');
             if (newPre) {
-              pre.replaceWith(newPre);
+              preElement.replaceWith(newPre);
             }
           }
-        } catch (_langErr) {
-          // Language not supported — code block remains readable unhighlighted
+        } catch (_languageError) {
+          // Unsupported languages remain readable without syntax highlighting.
         }
       }
-    } catch (_shikiErr) {
-      // Shiki failed to load — code blocks remain readable unhighlighted
+    } catch (_highlightError) {
+      // Syntax highlighting is best-effort and should never block reading.
     }
   }
 
   async function getShikiHighlighter() {
-    if (shikiHighlighter) return shikiHighlighter;
-    if (shikiLoading) return null;
-    shikiLoading = true;
+    if (state.shikiHighlighter) return state.shikiHighlighter;
+    if (state.shikiLoading) return null;
+
+    state.shikiLoading = true;
 
     try {
       const shikiModule = await import(SHIKI_CDN);
-      shikiHighlighter = await shikiModule.createHighlighter({
+      state.shikiHighlighter = await shikiModule.createHighlighter({
         themes: ['github-light', 'github-dark'],
         langs: [
-          'javascript', 'typescript', 'python', 'bash', 'shell',
-          'json', 'html', 'css', 'markdown', 'yaml', 'sql',
-          'java', 'c', 'cpp', 'go', 'rust', 'ruby', 'php',
+          'javascript',
+          'typescript',
+          'python',
+          'bash',
+          'shell',
+          'json',
+          'html',
+          'css',
+          'markdown',
+          'yaml',
+          'sql',
+          'java',
+          'c',
+          'cpp',
+          'go',
+          'rust',
+          'ruby',
+          'php',
         ],
       });
-      return shikiHighlighter;
-    } catch (_err) {
-      shikiLoading = false;
+
+      return state.shikiHighlighter;
+    } catch (_error) {
       return null;
+    } finally {
+      state.shikiLoading = false;
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Sidebar
-  // ---------------------------------------------------------------------------
-
-  function initSidebar() {
-    els.sidebarToggle.addEventListener('click', () => {
-      const isOpen = els.sidebar.classList.toggle('open');
-      els.sidebarBackdrop.classList.toggle('visible', isOpen);
-    });
-
-    els.sidebarBackdrop.addEventListener('click', () => {
-      els.sidebar.classList.remove('open');
-      els.sidebarBackdrop.classList.remove('visible');
-    });
-
-    // Event delegation for sidebar nav
-    els.sidebarNav.addEventListener('click', (e) => {
-      const toggle = e.target.closest('.sidebar-toggle-btn');
-      if (toggle) {
-        e.preventDefault();
-        e.stopPropagation();
-        const item = toggle.closest('.sidebar-item');
-        if (item) {
-          item.classList.toggle('collapsed');
-        }
-        return;
-      }
-
-      // Close sidebar on mobile after link navigation
-      if (window.innerWidth < 1024) {
-        const link = e.target.closest('a');
-        if (link) {
-          els.sidebar.classList.remove('open');
-          els.sidebarBackdrop.classList.remove('visible');
-        }
-      }
-    });
   }
 
   function renderSidebar(bookId, tocData, activeSlug) {
     els.sidebarNav.replaceChildren();
-    if (!tocData.children || tocData.children.length === 0) return;
+
+    if (!tocData.children || tocData.children.length === 0) {
+      return;
+    }
 
     const list = buildSidebarList(bookId, tocData.children, activeSlug, 0);
     els.sidebarNav.appendChild(list);
   }
 
   function buildSidebarList(bookId, items, activeSlug, depth) {
-    const ul = document.createElement('ul');
-    ul.className = 'sidebar-list';
+    const list = document.createElement('ul');
+    list.className = 'sidebar-list';
+
     if (depth > 0) {
-      ul.classList.add('sidebar-list-nested');
+      list.classList.add('sidebar-list-nested');
     }
 
     for (const item of items) {
-      const li = document.createElement('li');
-      li.className = 'sidebar-item';
-      li.style.paddingLeft = `${depth * 16}px`;
+      const listItem = document.createElement('li');
+      listItem.className = 'sidebar-item';
+      listItem.style.paddingLeft = `${depth * 16}px`;
 
-      const hasChildren = item.children && item.children.length > 0;
-
+      const hasChildren = Array.isArray(item.children) && item.children.length > 0;
       const row = document.createElement('div');
       row.className = 'sidebar-item-row';
+
+      let nestedList = null;
+      let collapsed = false;
+
+      if (hasChildren) {
+        nestedList = buildSidebarList(bookId, item.children, activeSlug, depth + 1);
+        nestedList.id = shared.nextId('toc-section');
+        collapsed = !(activeSlug && subtreeContainsSlug(item.children, activeSlug));
+        if (collapsed) {
+          listItem.classList.add('collapsed');
+        }
+
+        const toggleButton = document.createElement('button');
+        toggleButton.type = 'button';
+        toggleButton.className = 'sidebar-toggle-btn';
+        toggleButton.setAttribute('aria-label', `Toggle section: ${item.title}`);
+        shared.setExpandedState(toggleButton, !collapsed, nestedList.id);
+
+        const chevron = document.createElement('span');
+        chevron.className = 'chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+        toggleButton.appendChild(chevron);
+        row.appendChild(toggleButton);
+      }
 
       const link = document.createElement('a');
       link.className = 'sidebar-link';
@@ -569,35 +730,20 @@
 
       if (item.slug === activeSlug && !item.anchor) {
         link.classList.add('active');
-      }
-
-      if (hasChildren) {
-        const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'sidebar-toggle-btn';
-        toggleBtn.setAttribute('aria-label', 'Toggle section');
-        const chevron = document.createElement('span');
-        chevron.className = 'chevron';
-        toggleBtn.appendChild(chevron);
-        row.appendChild(toggleBtn);
+        link.setAttribute('aria-current', 'page');
       }
 
       row.appendChild(link);
-      li.appendChild(row);
+      listItem.appendChild(row);
 
-      if (hasChildren) {
-        const nestedList = buildSidebarList(bookId, item.children, activeSlug, depth + 1);
-        li.appendChild(nestedList);
-
-        const containsActive = activeSlug && subtreeContainsSlug(item.children, activeSlug);
-        if (!containsActive) {
-          li.classList.add('collapsed');
-        }
+      if (nestedList) {
+        listItem.appendChild(nestedList);
       }
 
-      ul.appendChild(li);
+      list.appendChild(listItem);
     }
 
-    return ul;
+    return list;
   }
 
   function subtreeContainsSlug(items, slug) {
@@ -605,16 +751,15 @@
       if (item.slug === slug) return true;
       if (item.children && subtreeContainsSlug(item.children, slug)) return true;
     }
+
     return false;
   }
 
-  // ---------------------------------------------------------------------------
-  // Chapter navigation (prev/next)
-  // ---------------------------------------------------------------------------
-
   function renderChapterNav(bookId, tocData, activeSlug) {
-    const chapters = flattenChapters(tocData.children);
-    const currentIndex = chapters.findIndex(c => c.slug === activeSlug && !c.anchor);
+    const chapters = flattenChapters(tocData.children || []);
+    const currentIndex = chapters.findIndex(
+      (chapter) => chapter.slug === activeSlug && !chapter.anchor
+    );
 
     if (currentIndex === -1) return;
 
@@ -622,11 +767,11 @@
     nav.className = 'chapter-nav';
     nav.setAttribute('aria-label', 'Chapter navigation');
 
-    const prev = currentIndex > 0 ? chapters[currentIndex - 1] : null;
-    const next = currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null;
+    const previousChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
+    const nextChapter = currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null;
 
-    nav.appendChild(buildNavLink(bookId, prev, 'prev', 'Previous'));
-    nav.appendChild(buildNavLink(bookId, next, 'next', 'Next'));
+    nav.appendChild(buildNavLink(bookId, previousChapter, 'prev', 'Previous'));
+    nav.appendChild(buildNavLink(bookId, nextChapter, 'next', 'Next'));
 
     const article = els.readerView.querySelector('.reader-content');
     if (article) {
@@ -635,124 +780,143 @@
   }
 
   function buildNavLink(bookId, chapter, direction, labelText) {
+    if (!chapter) {
+      const placeholder = document.createElement('div');
+      placeholder.className = `chapter-nav-placeholder chapter-nav-link--${direction}`;
+      placeholder.setAttribute('aria-hidden', 'true');
+      return placeholder;
+    }
+
     const link = document.createElement('a');
     link.className = `chapter-nav-link chapter-nav-link--${direction}`;
-    if (chapter) {
-      link.href = `#/${bookId}/chapters/${chapter.slug}`;
-      const label = document.createElement('span');
-      label.className = 'chapter-nav-label';
-      label.textContent = labelText;
-      const title = document.createElement('span');
-      title.className = 'chapter-nav-title';
-      title.textContent = chapter.title;
-      link.appendChild(label);
-      link.appendChild(title);
-    }
+    link.href = `#/${bookId}/chapters/${chapter.slug}`;
+
+    const label = document.createElement('span');
+    label.className = 'chapter-nav-label';
+    label.textContent = labelText;
+
+    const title = document.createElement('span');
+    title.className = 'chapter-nav-title';
+    title.textContent = chapter.title;
+
+    link.appendChild(label);
+    link.appendChild(title);
+
     return link;
   }
 
   function flattenChapters(items) {
-    const result = [];
+    const flattened = [];
+
     for (const item of items) {
       if (item.slug && !item.anchor) {
-        result.push(item);
+        flattened.push(item);
       }
+
       if (item.children) {
-        result.push(...flattenChapters(item.children));
+        flattened.push.apply(flattened, flattenChapters(item.children));
       }
     }
-    return result;
+
+    return flattened;
   }
 
-  // ---------------------------------------------------------------------------
-  // Theme toggle
-  // ---------------------------------------------------------------------------
-
   function initTheme() {
-    const stored = localStorage.getItem(THEME_KEY);
-    let theme;
-    if (stored === 'dark' || stored === 'light') {
-      theme = stored;
-    } else {
-      theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
+    const storedTheme = localStorage.getItem(THEME_KEY);
+    const theme =
+      storedTheme === 'dark' || storedTheme === 'light'
+        ? storedTheme
+        : window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light';
+
     applyTheme(theme);
 
     els.themeToggle.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      applyTheme(next);
-      localStorage.setItem(THEME_KEY, next);
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      applyTheme(nextTheme);
+      localStorage.setItem(THEME_KEY, nextTheme);
     });
   }
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
-    if (els.themeIconLight) els.themeIconLight.style.display = theme === 'dark' ? '' : 'none';
-    if (els.themeIconDark) els.themeIconDark.style.display = theme === 'light' ? '' : 'none';
+
+    if (els.themeIconLight) {
+      els.themeIconLight.style.display = theme === 'dark' ? '' : 'none';
+    }
+
+    if (els.themeIconDark) {
+      els.themeIconDark.style.display = theme === 'light' ? '' : 'none';
+    }
+
+    els.themeToggle.setAttribute(
+      'aria-label',
+      theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'
+    );
   }
 
-  // ---------------------------------------------------------------------------
-  // Keyboard navigation
-  // ---------------------------------------------------------------------------
-
   function initKeyboard() {
-    document.addEventListener('keydown', (e) => {
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    document.addEventListener('keydown', (event) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName : null;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
+        return;
+      }
 
       if (els.readerView.style.display === 'none') return;
-      if (!currentBookId || !currentSlug) return;
+      if (!state.currentBookId || !state.currentSlug) return;
 
-      if (e.key === 'ArrowLeft') {
+      if (event.key === 'ArrowLeft') {
         navigateChapter(-1);
-      } else if (e.key === 'ArrowRight') {
+      } else if (event.key === 'ArrowRight') {
         navigateChapter(1);
       }
     });
   }
 
   function navigateChapter(direction) {
-    const tocData = tocCache[currentBookId];
+    const tocData = state.tocCache[state.currentBookId];
     if (!tocData) return;
 
-    const chapters = flattenChapters(tocData.children);
-    const currentIndex = chapters.findIndex(c => c.slug === currentSlug && !c.anchor);
+    const chapters = flattenChapters(tocData.children || []);
+    const currentIndex = chapters.findIndex(
+      (chapter) => chapter.slug === state.currentSlug && !chapter.anchor
+    );
     if (currentIndex === -1) return;
 
     const targetIndex = currentIndex + direction;
     if (targetIndex >= 0 && targetIndex < chapters.length) {
-      location.hash = `#/${currentBookId}/chapters/${chapters[targetIndex].slug}`;
+      location.hash = `#/${state.currentBookId}/chapters/${chapters[targetIndex].slug}`;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Admin lazy loading
-  // ---------------------------------------------------------------------------
 
   function showAdmin() {
-    currentBookId = null;
-    currentSlug = null;
+    state.currentBookId = null;
+    state.currentSlug = null;
 
-    updateTopBar({ showSidebarToggle: false, showBookshelfLink: true, breadcrumb: 'Admin' });
-    els.sidebar.classList.remove('visible');
+    updateTopBar({
+      showSidebarToggle: false,
+      showBookshelfLink: true,
+      breadcrumb: 'Admin',
+    });
+    setDocumentTitle(['Admin']);
     els.adminView.style.display = 'block';
 
-    if (!adminLoaded) {
+    if (!state.adminLoaded) {
       const script = document.createElement('script');
-      // Cache-bust: append the same version param that deploy-pages.yml
-      // injects into index.html. Falls back to timestamp if not present.
       const appScript = document.querySelector('script[src*="app.js"]');
-      const version = appScript?.src?.match(/\?v=([^&]+)/)?.[1] || Date.now();
+      const version = appScript && appScript.src
+        ? (appScript.src.match(/\?v=([^&]+)/) || [])[1] || Date.now()
+        : Date.now();
+
       script.src = `assets/admin.js?v=${version}`;
       document.body.appendChild(script);
-      adminLoaded = true;
+      state.adminLoaded = true;
+    } else if (typeof window.initAdmin === 'function' && !els.adminView.firstChild) {
+      window.initAdmin(els.adminView);
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Bootstrap
-  // ---------------------------------------------------------------------------
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

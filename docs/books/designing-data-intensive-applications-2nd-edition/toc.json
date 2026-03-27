@@ -1,0 +1,435 @@
+{
+  "title": "Designing Data-Intensive Applications, 2nd Edition",
+  "children": [
+    {
+      "title": "Preface",
+      "slug": "00-preface"
+    },
+    {
+      "title": "Table of Contents",
+      "slug": "01-table-of-contents"
+    },
+    {
+      "title": "Preface",
+      "slug": "02-preface",
+      "children": [
+        {
+          "title": "Who Should Read This Book?",
+          "slug": "02-preface",
+          "anchor": "who-should-read-this-book"
+        },
+        {
+          "title": "What’s New in the Second Edition?",
+          "slug": "02-preface",
+          "anchor": "what-s-new-in-the-second-edition"
+        },
+        {
+          "title": "References and Further Reading",
+          "slug": "02-preface",
+          "anchor": "references-and-further-reading"
+        },
+        {
+          "title": "Conventions Used in This Book",
+          "slug": "02-preface",
+          "anchor": "conventions-used-in-this-book"
+        },
+        {
+          "title": "O’Reilly Online Learning",
+          "slug": "02-preface",
+          "anchor": "o-reilly-online-learning"
+        },
+        {
+          "title": "How to Contact Us",
+          "slug": "02-preface",
+          "anchor": "how-to-contact-us"
+        },
+        {
+          "title": "Acknowledgments",
+          "slug": "02-preface",
+          "anchor": "acknowledgments"
+        }
+      ]
+    },
+    {
+      "title": "Trade-Offs in Data Systems Architecture",
+      "slug": "03-trade-offs-in-data-systems-architecture",
+      "children": [
+        {
+          "title": "Operational Versus Analytical Systems",
+          "slug": "03-trade-offs-in-data-systems-architecture",
+          "anchor": "operational-versus-analytical-systems"
+        },
+        {
+          "title": "Cloud Versus Self-Hosting",
+          "slug": "03-trade-offs-in-data-systems-architecture",
+          "anchor": "cloud-versus-self-hosting"
+        },
+        {
+          "title": "Distributed Versus Single-Node Systems",
+          "slug": "03-trade-offs-in-data-systems-architecture",
+          "anchor": "distributed-versus-single-node-systems"
+        },
+        {
+          "title": "Data Systems, Law, and Society",
+          "slug": "03-trade-offs-in-data-systems-architecture",
+          "anchor": "data-systems-law-and-society"
+        },
+        {
+          "title": "Summary",
+          "slug": "03-trade-offs-in-data-systems-architecture",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Defining Nonfunctional Requirements",
+      "slug": "04-defining-nonfunctional-requirements",
+      "children": [
+        {
+          "title": "Case Study: Social Network Home Timelines",
+          "slug": "04-defining-nonfunctional-requirements",
+          "anchor": "case-study-social-network-home-timelines"
+        },
+        {
+          "title": "Describing Performance",
+          "slug": "04-defining-nonfunctional-requirements",
+          "anchor": "describing-performance"
+        },
+        {
+          "title": "Reliability and Fault Tolerance",
+          "slug": "04-defining-nonfunctional-requirements",
+          "anchor": "reliability-and-fault-tolerance"
+        },
+        {
+          "title": "Scalability",
+          "slug": "04-defining-nonfunctional-requirements",
+          "anchor": "scalability"
+        },
+        {
+          "title": "Maintainability",
+          "slug": "04-defining-nonfunctional-requirements",
+          "anchor": "maintainability"
+        },
+        {
+          "title": "Summary",
+          "slug": "04-defining-nonfunctional-requirements",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Data Models and Query Languages",
+      "slug": "05-data-models-and-query-languages",
+      "children": [
+        {
+          "title": "Relational Versus Document Models",
+          "slug": "05-data-models-and-query-languages",
+          "anchor": "relational-versus-document-models"
+        },
+        {
+          "title": "Graph-Like Data Models",
+          "slug": "05-data-models-and-query-languages",
+          "anchor": "graph-like-data-models"
+        },
+        {
+          "title": "Event Sourcing and CQRS",
+          "slug": "05-data-models-and-query-languages",
+          "anchor": "event-sourcing-and-cqrs"
+        },
+        {
+          "title": "DataFrames, Matrices, and Arrays",
+          "slug": "05-data-models-and-query-languages",
+          "anchor": "dataframes-matrices-and-arrays"
+        },
+        {
+          "title": "Summary",
+          "slug": "05-data-models-and-query-languages",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Storage and Retrieval",
+      "slug": "06-storage-and-retrieval",
+      "children": [
+        {
+          "title": "Storage and Indexing for OLTP",
+          "slug": "06-storage-and-retrieval",
+          "anchor": "storage-and-indexing-for-oltp"
+        },
+        {
+          "title": "Data Storage for Analytics",
+          "slug": "06-storage-and-retrieval",
+          "anchor": "data-storage-for-analytics"
+        },
+        {
+          "title": "Multidimensional and Full-Text Indexes",
+          "slug": "06-storage-and-retrieval",
+          "anchor": "multidimensional-and-full-text-indexes"
+        },
+        {
+          "title": "Summary",
+          "slug": "06-storage-and-retrieval",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Encoding and Evolution",
+      "slug": "07-encoding-and-evolution",
+      "children": [
+        {
+          "title": "Formats for Encoding Data",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "formats-for-encoding-data"
+        },
+        {
+          "title": "Modes of Dataflow",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "modes-of-dataflow"
+        },
+        {
+          "title": "Summary",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "summary"
+        },
+        {
+          "title": "Single-Leader Replication",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "single-leader-replication"
+        },
+        {
+          "title": "Multi-Leader Replication",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "multi-leader-replication"
+        },
+        {
+          "title": "Leaderless Replication",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "leaderless-replication"
+        },
+        {
+          "title": "Summary",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "summary"
+        },
+        {
+          "title": "Pros and Cons of Sharding",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "pros-and-cons-of-sharding"
+        },
+        {
+          "title": "Sharding for Multitenancy",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "sharding-for-multitenancy"
+        },
+        {
+          "title": "Sharding of Key-Value Data",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "sharding-of-key-value-data"
+        },
+        {
+          "title": "Request Routing",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "request-routing"
+        },
+        {
+          "title": "Sharding and Secondary Indexes",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "sharding-and-secondary-indexes"
+        },
+        {
+          "title": "Summary",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "summary"
+        },
+        {
+          "title": "What Exactly Is a Transaction?",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "what-exactly-is-a-transaction"
+        },
+        {
+          "title": "Weak Isolation Levels",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "weak-isolation-levels"
+        },
+        {
+          "title": "Serializability",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "serializability"
+        },
+        {
+          "title": "Distributed Transactions",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "distributed-transactions"
+        },
+        {
+          "title": "Summary",
+          "slug": "07-encoding-and-evolution",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "The Trouble with Distributed Systems",
+      "slug": "08-the-trouble-with-distributed-systems",
+      "children": [
+        {
+          "title": "Faults and Partial Failures",
+          "slug": "08-the-trouble-with-distributed-systems",
+          "anchor": "faults-and-partial-failures"
+        },
+        {
+          "title": "Unreliable Networks",
+          "slug": "08-the-trouble-with-distributed-systems",
+          "anchor": "unreliable-networks"
+        },
+        {
+          "title": "Unreliable Clocks",
+          "slug": "08-the-trouble-with-distributed-systems",
+          "anchor": "unreliable-clocks"
+        },
+        {
+          "title": "Knowledge, Truth, and Lies",
+          "slug": "08-the-trouble-with-distributed-systems",
+          "anchor": "knowledge-truth-and-lies"
+        },
+        {
+          "title": "Summary",
+          "slug": "08-the-trouble-with-distributed-systems",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Consistency and Consensus",
+      "slug": "09-consistency-and-consensus",
+      "children": [
+        {
+          "title": "Linearizability",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "linearizability"
+        },
+        {
+          "title": "ID Generators and Logical Clocks",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "id-generators-and-logical-clocks"
+        },
+        {
+          "title": "Consensus",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "consensus"
+        },
+        {
+          "title": "Summary",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "summary"
+        },
+        {
+          "title": "Batch Processing with Unix Tools",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "batch-processing-with-unix-tools"
+        },
+        {
+          "title": "Batch Processing in Distributed Systems",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "batch-processing-in-distributed-systems"
+        },
+        {
+          "title": "Batch Processing Models",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "batch-processing-models"
+        },
+        {
+          "title": "Batch Use Cases",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "batch-use-cases"
+        },
+        {
+          "title": "Summary",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "summary"
+        },
+        {
+          "title": "Transmitting Event Streams",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "transmitting-event-streams"
+        },
+        {
+          "title": "Databases and Streams",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "databases-and-streams"
+        },
+        {
+          "title": "Processing Streams",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "processing-streams"
+        },
+        {
+          "title": "Summary",
+          "slug": "09-consistency-and-consensus",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "A Philosophy of Streaming Systems",
+      "slug": "10-a-philosophy-of-streaming-systems",
+      "children": [
+        {
+          "title": "Data Integration",
+          "slug": "10-a-philosophy-of-streaming-systems",
+          "anchor": "data-integration"
+        },
+        {
+          "title": "Unbundling Databases",
+          "slug": "10-a-philosophy-of-streaming-systems",
+          "anchor": "unbundling-databases"
+        },
+        {
+          "title": "Aiming for Correctness",
+          "slug": "10-a-philosophy-of-streaming-systems",
+          "anchor": "aiming-for-correctness"
+        },
+        {
+          "title": "Summary",
+          "slug": "10-a-philosophy-of-streaming-systems",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Doing the Right Thing",
+      "slug": "11-doing-the-right-thing",
+      "children": [
+        {
+          "title": "Predictive Analytics",
+          "slug": "11-doing-the-right-thing",
+          "anchor": "predictive-analytics"
+        },
+        {
+          "title": "Privacy and Tracking",
+          "slug": "11-doing-the-right-thing",
+          "anchor": "privacy-and-tracking"
+        },
+        {
+          "title": "Summary",
+          "slug": "11-doing-the-right-thing",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "index",
+      "slug": "12-index"
+    },
+    {
+      "title": "About the Authors",
+      "slug": "13-about-the-authors"
+    },
+    {
+      "title": "Colophon",
+      "slug": "14-colophon"
+    }
+  ]
+}

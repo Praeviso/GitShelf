@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build cache
+.vite/
+
+# Test
+coverage/
+
+# Playwright
+.playwright/
+.playwright-cli/
+
+# OS
+.DS_Store
+
+# Python
+*__pycache__
+
+# Project local
+plans
+spec
+.claude

@@ -1,0 +1,71 @@
+name: Test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/**"
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.js"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.js"
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate Python scripts
+        run: python3 -m py_compile scripts/build_manifest.py scripts/convert.py
+
+      - name: Run Python tests
+        run: python3 -m unittest discover -s tests/scripts -v
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests
+        run: npm test

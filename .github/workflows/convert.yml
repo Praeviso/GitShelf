@@ -1,0 +1,58 @@
+name: Convert PDF to Book
+
+on:
+  push:
+    paths:
+      - "input/*.pdf"
+  workflow_dispatch:
+    inputs:
+      filename:
+        description: "Specific PDF filename in input/ (e.g. book.pdf)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pdf-conversion
+  cancel-in-progress: false
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      MINERU_TOKEN: ${{ secrets.MINERU_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run conversion pipeline
+        run: python scripts/convert.py
+        env:
+          INPUT_FILENAME: ${{ inputs.filename }}
+
+      - name: Commit and push results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git rm -r --ignore-unmatch input/*.pdf 2>/dev/null || true
+          git add docs/ cache/ 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            CHANGED=$(git diff --cached --name-only -- docs/ | head -1 | sed 's|docs/||;s|/.*||')
+            git commit -m "feat(pipeline): convert ${CHANGED:-pdf} to book"
+            git push
+          fi

@@ -1,0 +1,985 @@
+{
+  "page_count": 673,
+  "toc": [
+    {
+      "level": 1,
+      "title": "Cover"
+    },
+    {
+      "level": 1,
+      "title": "Copyright"
+    },
+    {
+      "level": 1,
+      "title": "Table of Contents"
+    },
+    {
+      "level": 1,
+      "title": "Preface"
+    },
+    {
+      "level": 2,
+      "title": "Who Should Read This Book?"
+    },
+    {
+      "level": 2,
+      "title": "What’s New in the Second Edition?"
+    },
+    {
+      "level": 2,
+      "title": "References and Further Reading"
+    },
+    {
+      "level": 2,
+      "title": "Conventions Used in This Book"
+    },
+    {
+      "level": 2,
+      "title": "O’Reilly Online Learning"
+    },
+    {
+      "level": 2,
+      "title": "How to Contact Us"
+    },
+    {
+      "level": 2,
+      "title": "Acknowledgments"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 1. Trade-Offs in Data Systems Architecture"
+    },
+    {
+      "level": 2,
+      "title": "Operational Versus Analytical Systems"
+    },
+    {
+      "level": 3,
+      "title": "Characterizing Transaction Processing and Analytics"
+    },
+    {
+      "level": 3,
+      "title": "Data Warehousing"
+    },
+    {
+      "level": 3,
+      "title": "Systems of Record and Derived Data"
+    },
+    {
+      "level": 2,
+      "title": "Cloud Versus Self-Hosting"
+    },
+    {
+      "level": 3,
+      "title": "Pros and Cons of Cloud Services"
+    },
+    {
+      "level": 3,
+      "title": "Cloud Native System Architecture"
+    },
+    {
+      "level": 3,
+      "title": "Operations in the Cloud Era"
+    },
+    {
+      "level": 2,
+      "title": "Distributed Versus Single-Node Systems"
+    },
+    {
+      "level": 3,
+      "title": "Problems with Distributed Systems"
+    },
+    {
+      "level": 3,
+      "title": "Microservices and Serverless"
+    },
+    {
+      "level": 3,
+      "title": "Cloud Computing Versus Supercomputing"
+    },
+    {
+      "level": 2,
+      "title": "Data Systems, Law, and Society"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 2. Defining Nonfunctional Requirements"
+    },
+    {
+      "level": 2,
+      "title": "Case Study: Social Network Home Timelines"
+    },
+    {
+      "level": 3,
+      "title": "Representing Users, Posts, and Follows"
+    },
+    {
+      "level": 3,
+      "title": "Materializing and Updating Timelines"
+    },
+    {
+      "level": 2,
+      "title": "Describing Performance"
+    },
+    {
+      "level": 3,
+      "title": "Latency and Response Time"
+    },
+    {
+      "level": 3,
+      "title": "Average, Median, and Percentiles"
+    },
+    {
+      "level": 3,
+      "title": "Use of Response Time Metrics"
+    },
+    {
+      "level": 2,
+      "title": "Reliability and Fault Tolerance"
+    },
+    {
+      "level": 3,
+      "title": "Fault Tolerance"
+    },
+    {
+      "level": 3,
+      "title": "Hardware and Software Faults"
+    },
+    {
+      "level": 3,
+      "title": "Humans and Reliability"
+    },
+    {
+      "level": 2,
+      "title": "Scalability"
+    },
+    {
+      "level": 3,
+      "title": "Understanding Load"
+    },
+    {
+      "level": 3,
+      "title": "Shared-Memory, Shared-Disk, and Shared-Nothing Architectures"
+    },
+    {
+      "level": 3,
+      "title": "Principles for Scalability"
+    },
+    {
+      "level": 2,
+      "title": "Maintainability"
+    },
+    {
+      "level": 3,
+      "title": "Operability: Making Life Easy for Operations"
+    },
+    {
+      "level": 3,
+      "title": "Simplicity: Managing Complexity"
+    },
+    {
+      "level": 3,
+      "title": "Evolvability: Making Change Easy"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 3. Data Models and Query Languages"
+    },
+    {
+      "level": 2,
+      "title": "Relational Versus Document Models"
+    },
+    {
+      "level": 3,
+      "title": "The Object-Relational Mismatch"
+    },
+    {
+      "level": 3,
+      "title": "Normalization, Denormalization, and Joins"
+    },
+    {
+      "level": 3,
+      "title": "Many-to-One and Many-to-Many Relationships"
+    },
+    {
+      "level": 3,
+      "title": "Stars and Snowflakes: Schemas for Analytics"
+    },
+    {
+      "level": 3,
+      "title": "When to Use Which Model"
+    },
+    {
+      "level": 2,
+      "title": "Graph-Like Data Models"
+    },
+    {
+      "level": 3,
+      "title": "Property Graphs"
+    },
+    {
+      "level": 3,
+      "title": "The Cypher Query Language"
+    },
+    {
+      "level": 3,
+      "title": "Graph Queries in SQL"
+    },
+    {
+      "level": 3,
+      "title": "Triple Stores and SPARQL"
+    },
+    {
+      "level": 3,
+      "title": "Datalog: Recursive Relational Queries"
+    },
+    {
+      "level": 3,
+      "title": "GraphQL"
+    },
+    {
+      "level": 2,
+      "title": "Event Sourcing and CQRS"
+    },
+    {
+      "level": 2,
+      "title": "DataFrames, Matrices, and Arrays"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 4. Storage and Retrieval"
+    },
+    {
+      "level": 2,
+      "title": "Storage and Indexing for OLTP"
+    },
+    {
+      "level": 3,
+      "title": "Log-Structured Storage"
+    },
+    {
+      "level": 3,
+      "title": "B-Trees"
+    },
+    {
+      "level": 3,
+      "title": "Comparing B-Trees and LSM-Trees"
+    },
+    {
+      "level": 3,
+      "title": "Multicolumn and Secondary Indexes"
+    },
+    {
+      "level": 3,
+      "title": "Storing Values Within the Index"
+    },
+    {
+      "level": 3,
+      "title": "Keeping Everything in Memory"
+    },
+    {
+      "level": 2,
+      "title": "Data Storage for Analytics"
+    },
+    {
+      "level": 3,
+      "title": "Cloud Data Warehouses"
+    },
+    {
+      "level": 3,
+      "title": "Column-Oriented Storage"
+    },
+    {
+      "level": 3,
+      "title": "Query Execution: Compilation and Vectorization"
+    },
+    {
+      "level": 3,
+      "title": "Materialized Views and Data Cubes"
+    },
+    {
+      "level": 2,
+      "title": "Multidimensional and Full-Text Indexes"
+    },
+    {
+      "level": 3,
+      "title": "Full-Text Search"
+    },
+    {
+      "level": 3,
+      "title": "Vector Embeddings"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 5. Encoding and Evolution"
+    },
+    {
+      "level": 2,
+      "title": "Formats for Encoding Data"
+    },
+    {
+      "level": 3,
+      "title": "Language-Specific Formats"
+    },
+    {
+      "level": 3,
+      "title": "JSON, XML, and Binary Variants"
+    },
+    {
+      "level": 3,
+      "title": "Protocol Buffers"
+    },
+    {
+      "level": 3,
+      "title": "Avro"
+    },
+    {
+      "level": 3,
+      "title": "The Merits of Schemas"
+    },
+    {
+      "level": 2,
+      "title": "Modes of Dataflow"
+    },
+    {
+      "level": 3,
+      "title": "Dataflow Through Databases"
+    },
+    {
+      "level": 3,
+      "title": "Dataflow Through Services: REST and RPC"
+    },
+    {
+      "level": 3,
+      "title": "Durable Execution and Workflows"
+    },
+    {
+      "level": 3,
+      "title": "Event-Driven Architectures"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 6. Replication"
+    },
+    {
+      "level": 2,
+      "title": "Single-Leader Replication"
+    },
+    {
+      "level": 3,
+      "title": "Synchronous Versus Asynchronous Replication"
+    },
+    {
+      "level": 3,
+      "title": "Setting Up New Followers"
+    },
+    {
+      "level": 3,
+      "title": "Handling Node Outages"
+    },
+    {
+      "level": 3,
+      "title": "Implementation of Replication Logs"
+    },
+    {
+      "level": 3,
+      "title": "Problems with Replication Lag"
+    },
+    {
+      "level": 3,
+      "title": "Solutions for Replication Lag"
+    },
+    {
+      "level": 2,
+      "title": "Multi-Leader Replication"
+    },
+    {
+      "level": 3,
+      "title": "Geographically Distributed Operation"
+    },
+    {
+      "level": 3,
+      "title": "Sync Engines and Local-First Software"
+    },
+    {
+      "level": 3,
+      "title": "Dealing with Conflicting Writes"
+    },
+    {
+      "level": 2,
+      "title": "Leaderless Replication"
+    },
+    {
+      "level": 3,
+      "title": "Writing to the Database When a Node Is Down"
+    },
+    {
+      "level": 3,
+      "title": "Single-Leader Versus Leaderless Replication Performance"
+    },
+    {
+      "level": 3,
+      "title": "Multi-Region Operation"
+    },
+    {
+      "level": 3,
+      "title": "Detecting Concurrent Writes"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 7. Sharding"
+    },
+    {
+      "level": 2,
+      "title": "Pros and Cons of Sharding"
+    },
+    {
+      "level": 2,
+      "title": "Sharding for Multitenancy"
+    },
+    {
+      "level": 2,
+      "title": "Sharding of Key-Value Data"
+    },
+    {
+      "level": 3,
+      "title": "Sharding by Key Range"
+    },
+    {
+      "level": 3,
+      "title": "Sharding by Hash of Key"
+    },
+    {
+      "level": 3,
+      "title": "Skewed Workloads and Relieving Hot Spots"
+    },
+    {
+      "level": 3,
+      "title": "Operations: Automatic Versus Manual Rebalancing"
+    },
+    {
+      "level": 2,
+      "title": "Request Routing"
+    },
+    {
+      "level": 2,
+      "title": "Sharding and Secondary Indexes"
+    },
+    {
+      "level": 3,
+      "title": "Local Secondary Indexes"
+    },
+    {
+      "level": 3,
+      "title": "Global Secondary Indexes"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 8. Transactions"
+    },
+    {
+      "level": 2,
+      "title": "What Exactly Is a Transaction?"
+    },
+    {
+      "level": 3,
+      "title": "The Meaning of ACID"
+    },
+    {
+      "level": 3,
+      "title": "Single-Object and Multi-Object Operations"
+    },
+    {
+      "level": 2,
+      "title": "Weak Isolation Levels"
+    },
+    {
+      "level": 3,
+      "title": "Read Committed"
+    },
+    {
+      "level": 3,
+      "title": "Snapshot Isolation and Repeatable Read"
+    },
+    {
+      "level": 3,
+      "title": "Preventing Lost Updates"
+    },
+    {
+      "level": 3,
+      "title": "Write Skew and Phantoms"
+    },
+    {
+      "level": 2,
+      "title": "Serializability"
+    },
+    {
+      "level": 3,
+      "title": "Actual Serial Execution"
+    },
+    {
+      "level": 3,
+      "title": "Two-Phase Locking"
+    },
+    {
+      "level": 3,
+      "title": "Serializable Snapshot Isolation"
+    },
+    {
+      "level": 2,
+      "title": "Distributed Transactions"
+    },
+    {
+      "level": 3,
+      "title": "Two-Phase Commit"
+    },
+    {
+      "level": 3,
+      "title": "Distributed Transactions Across Different Systems"
+    },
+    {
+      "level": 3,
+      "title": "Database-Internal Distributed Transactions"
+    },
+    {
+      "level": 3,
+      "title": "Exactly-Once Message Processing Revisited"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 9. The Trouble with Distributed Systems"
+    },
+    {
+      "level": 2,
+      "title": "Faults and Partial Failures"
+    },
+    {
+      "level": 2,
+      "title": "Unreliable Networks"
+    },
+    {
+      "level": 3,
+      "title": "The Limitations of TCP"
+    },
+    {
+      "level": 3,
+      "title": "Network Faults in Practice"
+    },
+    {
+      "level": 3,
+      "title": "Fault Detection"
+    },
+    {
+      "level": 3,
+      "title": "Timeouts and Unbounded Delays"
+    },
+    {
+      "level": 3,
+      "title": "Synchronous Versus Asynchronous Networks"
+    },
+    {
+      "level": 2,
+      "title": "Unreliable Clocks"
+    },
+    {
+      "level": 3,
+      "title": "Monotonic Versus Time-of-Day Clocks"
+    },
+    {
+      "level": 3,
+      "title": "Clock Synchronization and Accuracy"
+    },
+    {
+      "level": 3,
+      "title": "Relying on Synchronized Clocks"
+    },
+    {
+      "level": 3,
+      "title": "Process Pauses"
+    },
+    {
+      "level": 2,
+      "title": "Knowledge, Truth, and Lies"
+    },
+    {
+      "level": 3,
+      "title": "The Majority Rules"
+    },
+    {
+      "level": 3,
+      "title": "Distributed Locks and Leases"
+    },
+    {
+      "level": 3,
+      "title": "Byzantine Faults"
+    },
+    {
+      "level": 3,
+      "title": "System Model and Reality"
+    },
+    {
+      "level": 3,
+      "title": "Formal Methods and Randomized Testing"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 10. Consistency and Consensus"
+    },
+    {
+      "level": 2,
+      "title": "Linearizability"
+    },
+    {
+      "level": 3,
+      "title": "What Makes a System Linearizable?"
+    },
+    {
+      "level": 3,
+      "title": "Relying on Linearizability"
+    },
+    {
+      "level": 3,
+      "title": "Implementing Linearizable Systems"
+    },
+    {
+      "level": 3,
+      "title": "The Cost of Linearizability"
+    },
+    {
+      "level": 2,
+      "title": "ID Generators and Logical Clocks"
+    },
+    {
+      "level": 3,
+      "title": "Logical Clocks"
+    },
+    {
+      "level": 3,
+      "title": "Linearizable ID Generators"
+    },
+    {
+      "level": 2,
+      "title": "Consensus"
+    },
+    {
+      "level": 3,
+      "title": "The Many Faces of Consensus"
+    },
+    {
+      "level": 3,
+      "title": "Consensus in Practice"
+    },
+    {
+      "level": 3,
+      "title": "Coordination Services"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 11. Batch Processing"
+    },
+    {
+      "level": 2,
+      "title": "Batch Processing with Unix Tools"
+    },
+    {
+      "level": 3,
+      "title": "Simple Log Analysis"
+    },
+    {
+      "level": 3,
+      "title": "Chain of Commands Versus Custom Program"
+    },
+    {
+      "level": 3,
+      "title": "Sorting Versus In-Memory Aggregation"
+    },
+    {
+      "level": 2,
+      "title": "Batch Processing in Distributed Systems"
+    },
+    {
+      "level": 3,
+      "title": "Distributed Filesystems"
+    },
+    {
+      "level": 3,
+      "title": "Object Stores"
+    },
+    {
+      "level": 3,
+      "title": "Distributed Job Orchestration"
+    },
+    {
+      "level": 2,
+      "title": "Batch Processing Models"
+    },
+    {
+      "level": 3,
+      "title": "MapReduce"
+    },
+    {
+      "level": 3,
+      "title": "Dataflow Engines"
+    },
+    {
+      "level": 3,
+      "title": "Shuffling Data"
+    },
+    {
+      "level": 3,
+      "title": "Joins and Grouping"
+    },
+    {
+      "level": 3,
+      "title": "Query Languages"
+    },
+    {
+      "level": 3,
+      "title": "DataFrames"
+    },
+    {
+      "level": 2,
+      "title": "Batch Use Cases"
+    },
+    {
+      "level": 3,
+      "title": "Extract–Transform–Load"
+    },
+    {
+      "level": 3,
+      "title": "Analytics"
+    },
+    {
+      "level": 3,
+      "title": "Machine Learning"
+    },
+    {
+      "level": 3,
+      "title": "Serving Derived Data"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 12. Stream Processing"
+    },
+    {
+      "level": 2,
+      "title": "Transmitting Event Streams"
+    },
+    {
+      "level": 3,
+      "title": "Messaging Systems"
+    },
+    {
+      "level": 3,
+      "title": "Log-Based Message Brokers"
+    },
+    {
+      "level": 2,
+      "title": "Databases and Streams"
+    },
+    {
+      "level": 3,
+      "title": "Keeping Systems in Sync"
+    },
+    {
+      "level": 3,
+      "title": "Change Data Capture"
+    },
+    {
+      "level": 3,
+      "title": "State, Streams, and Immutability"
+    },
+    {
+      "level": 2,
+      "title": "Processing Streams"
+    },
+    {
+      "level": 3,
+      "title": "Uses of Stream Processing"
+    },
+    {
+      "level": 3,
+      "title": "Reasoning About Time"
+    },
+    {
+      "level": 3,
+      "title": "Stream Joins"
+    },
+    {
+      "level": 3,
+      "title": "Fault Tolerance"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 13. A Philosophy of Streaming Systems"
+    },
+    {
+      "level": 2,
+      "title": "Data Integration"
+    },
+    {
+      "level": 3,
+      "title": "Combining Specialized Tools by Deriving Data"
+    },
+    {
+      "level": 3,
+      "title": "Batch and Stream Processing"
+    },
+    {
+      "level": 2,
+      "title": "Unbundling Databases"
+    },
+    {
+      "level": 3,
+      "title": "Composing Data Storage Technologies"
+    },
+    {
+      "level": 3,
+      "title": "Designing Applications Around Dataflow"
+    },
+    {
+      "level": 3,
+      "title": "Observing Derived State"
+    },
+    {
+      "level": 2,
+      "title": "Aiming for Correctness"
+    },
+    {
+      "level": 3,
+      "title": "The End-to-End Argument for Databases"
+    },
+    {
+      "level": 3,
+      "title": "Enforcing Constraints"
+    },
+    {
+      "level": 3,
+      "title": "Timeliness and Integrity"
+    },
+    {
+      "level": 3,
+      "title": "Trust, but Verify"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Chapter 14. Doing the Right Thing"
+    },
+    {
+      "level": 2,
+      "title": "Predictive Analytics"
+    },
+    {
+      "level": 3,
+      "title": "Bias and Discrimination"
+    },
+    {
+      "level": 3,
+      "title": "Responsibility and Accountability"
+    },
+    {
+      "level": 3,
+      "title": "Feedback Loops"
+    },
+    {
+      "level": 2,
+      "title": "Privacy and Tracking"
+    },
+    {
+      "level": 3,
+      "title": "Surveillance"
+    },
+    {
+      "level": 3,
+      "title": "Consent and Freedom of Choice"
+    },
+    {
+      "level": 3,
+      "title": "Privacy and Use of Data"
+    },
+    {
+      "level": 3,
+      "title": "Data as Assets and Power"
+    },
+    {
+      "level": 3,
+      "title": "Remembering the Industrial Revolution"
+    },
+    {
+      "level": 3,
+      "title": "Legislation and Self-Regulation"
+    },
+    {
+      "level": 2,
+      "title": "Summary"
+    },
+    {
+      "level": 1,
+      "title": "Glossary"
+    },
+    {
+      "level": 1,
+      "title": "Index"
+    },
+    {
+      "level": 1,
+      "title": "About the Authors"
+    },
+    {
+      "level": 1,
+      "title": "Colophon"
+    }
+  ]
+}

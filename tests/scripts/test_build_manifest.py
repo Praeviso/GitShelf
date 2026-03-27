@@ -1,0 +1,156 @@
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+from build_manifest import build_manifest
+
+
+def _write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _create_book(
+    books_dir: Path,
+    *,
+    book_id: str,
+    title: str,
+    source_pdf: str | None = None,
+) -> None:
+    book_dir = books_dir / book_id
+    chapters_dir = book_dir / "chapters"
+    chapters_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(book_dir / "toc.json", {"title": title, "children": []})
+    (chapters_dir / "01-intro.md").write_text("# Intro\n\nhello world\n", encoding="utf-8")
+
+    if source_pdf:
+        _write_json(
+            book_dir / "conversion.json",
+            {
+                "book_id": book_id,
+                "source_pdf": source_pdf,
+                "split_level": 1,
+                "page_count": 8,
+                "converted_at": "2026-03-25T10:00:00Z",
+            },
+        )
+
+
+class BuildManifestTest(unittest.TestCase):
+    def test_merge_metadata_and_filter_public_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            books_dir = root / "docs" / "books"
+            manifest_path = root / "docs" / "manifest.json"
+            metadata_path = root / "docs" / "catalog-metadata.json"
+            catalog_path = root / "docs" / "catalog.json"
+
+            _create_book(books_dir, book_id="book-one", title="Raw One", source_pdf="source-one.pdf")
+            _create_book(books_dir, book_id="book-two", title="Raw Two", source_pdf="source-two.pdf")
+
+            _write_json(
+                metadata_path,
+                {
+                    "books": {
+                        "book-one": {
+                            "display_title": "Curated One",
+                            "author": "Alice",
+                            "visibility": "hidden",
+                            "tags": ["ml"],
+                            "featured": True,
+                            "manual_order": 5,
+                        },
+                        "book-two": {
+                            "display_title": "Curated Two",
+                            "summary": "Public summary",
+                            "visibility": "published",
+                            "manual_order": 1,
+                        },
+                    }
+                },
+            )
+
+            build_manifest(
+                books_dir=books_dir,
+                output_path=manifest_path,
+                catalog_metadata_path=metadata_path,
+                catalog_output_path=catalog_path,
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual([book["id"] for book in manifest["books"]], ["book-two"])
+            public_book = manifest["books"][0]
+            self.assertEqual(public_book["title"], "Curated Two")
+            self.assertEqual(public_book["visibility"], "published")
+            self.assertEqual(public_book["source_pdf"], "source-two.pdf")
+
+            catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+            by_id = {book["id"]: book for book in catalog["books"]}
+            self.assertEqual(set(by_id.keys()), {"book-one", "book-two"})
+            self.assertEqual(by_id["book-one"]["generated_title"], "Raw One")
+            self.assertEqual(by_id["book-one"]["title"], "Curated One")
+            self.assertEqual(by_id["book-one"]["visibility"], "hidden")
+            self.assertEqual(by_id["book-one"]["source_pdf"], "source-one.pdf")
+
+    def test_create_default_metadata_and_source_pdf_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            books_dir = root / "docs" / "books"
+            manifest_path = root / "docs" / "manifest.json"
+            metadata_path = root / "docs" / "catalog-metadata.json"
+            catalog_path = root / "docs" / "catalog.json"
+
+            _create_book(books_dir, book_id="book-three", title="Raw Three", source_pdf=None)
+
+            build_manifest(
+                books_dir=books_dir,
+                output_path=manifest_path,
+                catalog_metadata_path=metadata_path,
+                catalog_output_path=catalog_path,
+            )
+
+            self.assertTrue(metadata_path.exists())
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            self.assertEqual(metadata, {"books": {}})
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["books"][0]["source_pdf"], "book-three.pdf")
+            self.assertEqual(manifest["books"][0]["visibility"], "published")
+
+    def test_invalid_metadata_fails_loudly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            books_dir = root / "docs" / "books"
+            manifest_path = root / "docs" / "manifest.json"
+            metadata_path = root / "docs" / "catalog-metadata.json"
+            catalog_path = root / "docs" / "catalog.json"
+
+            _create_book(books_dir, book_id="book-four", title="Raw Four", source_pdf="book-four.pdf")
+            _write_json(
+                metadata_path,
+                {
+                    "books": {
+                        "book-four": {
+                            "manual_order": "not-an-int",
+                            "visibility": "draft",
+                        }
+                    }
+                },
+            )
+
+            with self.assertRaisesRegex(ValueError, "Invalid catalog metadata for book-four"):
+                build_manifest(
+                    books_dir=books_dir,
+                    output_path=manifest_path,
+                    catalog_metadata_path=metadata_path,
+                    catalog_output_path=catalog_path,
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()

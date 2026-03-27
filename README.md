@@ -73,3 +73,7 @@ For **personal study and research only**. Users are responsible for ensuring the
 ## License
 
 MIT
+
+## Community
+
+thank to https://linux.do

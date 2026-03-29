@@ -8,7 +8,7 @@ export function ChapterNav({ bookId, chapters, currentIndex, wordCount }) {
   return (
     <nav class="chapter-nav" aria-label="Chapter navigation">
       {prev ? (
-        <a class="chapter-nav-link chapter-nav-link--prev" href={`#/${bookId}/chapters/${prev.slug}`}>
+        <a class="chapter-nav-link chapter-nav-link--prev" href={`#/books/${bookId}/${prev.slug}`}>
           <span class="chapter-nav-label">Previous</span>
           <span class="chapter-nav-title">{prev.title}</span>
         </a>
@@ -22,7 +22,7 @@ export function ChapterNav({ bookId, chapters, currentIndex, wordCount }) {
       </span>
 
       {next ? (
-        <a class="chapter-nav-link chapter-nav-link--next" href={`#/${bookId}/chapters/${next.slug}`}>
+        <a class="chapter-nav-link chapter-nav-link--next" href={`#/books/${bookId}/${next.slug}`}>
           <span class="chapter-nav-label">Next</span>
           <span class="chapter-nav-title">{next.title}</span>
         </a>

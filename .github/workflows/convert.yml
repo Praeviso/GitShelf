@@ -1,13 +1,13 @@
-name: Convert PDF to Book
+name: Process Content
 
 on:
   push:
     paths:
-      - "input/*.pdf"
+      - "input/**"
   workflow_dispatch:
     inputs:
       filename:
-        description: "Specific PDF filename in input/ (e.g. book.pdf)"
+        description: "Specific filename in input/ (e.g. book.pdf, notes.md, site.zip)"
         required: false
         type: string
 
@@ -15,11 +15,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: pdf-conversion
+  group: content-processing
   cancel-in-progress: false
 
 jobs:
-  convert:
+  process:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
@@ -38,8 +38,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run conversion pipeline
-        run: python scripts/convert.py
+      - name: Process content
+        run: python scripts/process.py
         env:
           INPUT_FILENAME: ${{ inputs.filename }}
 
@@ -47,12 +47,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git rm -r --ignore-unmatch input/*.pdf 2>/dev/null || true
+          git rm -r --ignore-unmatch input/* 2>/dev/null || true
           git add docs/ cache/ 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
             CHANGED=$(git diff --cached --name-only -- docs/ | head -1 | sed 's|docs/||;s|/.*||')
-            git commit -m "feat(pipeline): convert ${CHANGED:-pdf} to book"
+            git commit -m "feat(pipeline): process ${CHANGED:-content}"
             git push
           fi

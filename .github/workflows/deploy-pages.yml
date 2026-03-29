@@ -5,7 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
   workflow_run:
-    workflows: ["Convert PDF to Book"]
+    workflows: ["Process Content"]
     types: [completed]
     branches: [main]
 
@@ -42,6 +42,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_SITE_PASSWORD: ${{ secrets.VITE_SITE_PASSWORD }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

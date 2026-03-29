@@ -27,7 +27,7 @@ function GearIcon() {
 }
 
 export function TopBar({
-  theme, onToggleTheme, breadcrumb, showBookshelfLink,
+  theme, onToggleTheme, breadcrumb, showHomeLink,
   showSidebarToggle, onToggleSidebar, sidebarExpanded,
   progress, showProgress,
 }) {
@@ -47,14 +47,14 @@ export function TopBar({
             &#9776;
           </button>
         )}
-        <a href="#/" class="top-bar-title">PDF2Book</a>
+        <a href="#/" class="top-bar-title">GitShelf</a>
         {breadcrumb && <span class="top-bar-breadcrumb">{breadcrumb}</span>}
       </div>
       <div class="top-bar-right">
         <button class="theme-toggle" type="button" aria-label={themeLabel} onClick={onToggleTheme}>
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>
-        {showBookshelfLink && <a href="#/" class="top-bar-bookshelf-link">Bookshelf</a>}
+        {showHomeLink && <a href="#/" class="top-bar-home-link">Home</a>}
         <a href="#/admin" class="admin-link" aria-label="Settings"><GearIcon /></a>
       </div>
       {showProgress && (

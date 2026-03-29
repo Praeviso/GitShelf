@@ -53,6 +53,7 @@ class BuildManifestTest(unittest.TestCase):
             _create_book(books_dir, book_id="book-one", title="Raw One", source_pdf="source-one.pdf")
             _create_book(books_dir, book_id="book-two", title="Raw Two", source_pdf="source-two.pdf")
 
+            # Legacy "books" key still supported for backward compat
             _write_json(
                 metadata_path,
                 {
@@ -83,21 +84,21 @@ class BuildManifestTest(unittest.TestCase):
             )
 
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual([book["id"] for book in manifest["books"]], ["book-two"])
-            public_book = manifest["books"][0]
-            self.assertEqual(public_book["title"], "Curated Two")
-            self.assertEqual(public_book["visibility"], "published")
-            self.assertEqual(public_book["source_pdf"], "source-two.pdf")
+            self.assertEqual([item["id"] for item in manifest["items"]], ["book-two"])
+            public_item = manifest["items"][0]
+            self.assertEqual(public_item["title"], "Curated Two")
+            self.assertEqual(public_item["type"], "book")
+            self.assertEqual(public_item["source"], "source-two.pdf")
 
             catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-            by_id = {book["id"]: book for book in catalog["books"]}
+            by_id = {item["id"]: item for item in catalog["items"]}
             self.assertEqual(set(by_id.keys()), {"book-one", "book-two"})
             self.assertEqual(by_id["book-one"]["generated_title"], "Raw One")
             self.assertEqual(by_id["book-one"]["title"], "Curated One")
             self.assertEqual(by_id["book-one"]["visibility"], "hidden")
-            self.assertEqual(by_id["book-one"]["source_pdf"], "source-one.pdf")
+            self.assertEqual(by_id["book-one"]["source"], "source-one.pdf")
 
-    def test_create_default_metadata_and_source_pdf_fallback(self) -> None:
+    def test_create_default_metadata_and_source_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             books_dir = root / "docs" / "books"
@@ -116,11 +117,11 @@ class BuildManifestTest(unittest.TestCase):
 
             self.assertTrue(metadata_path.exists())
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            self.assertEqual(metadata, {"books": {}})
+            self.assertEqual(metadata, {"items": {}})
 
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual(manifest["books"][0]["source_pdf"], "book-three.pdf")
-            self.assertEqual(manifest["books"][0]["visibility"], "published")
+            self.assertEqual(manifest["items"][0]["source"], "book-three.pdf")
+            self.assertEqual(manifest["items"][0]["type"], "book")
 
     def test_invalid_metadata_fails_loudly(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

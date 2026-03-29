@@ -1,12 +1,12 @@
-# PDF2Book
+# GitShelf
 
 [中文](README.zh-CN.md)
 
-PDF to online bookshelf. Fork, read, done.
+GitHub-hosted content shelf. Fork, upload, done.
 
-> Fork this repo to get your own online bookshelf. Upload PDFs, they're automatically converted to Markdown and served as a GitBook-style reading site on GitHub Pages. Zero server cost.
+> Fork this repo to get your own content platform on GitHub Pages. Upload PDFs (auto-converted to books), Markdown documents (rendered directly), or ZIP archives (deployed as static sites). Zero server cost.
 
-## Quick Start (3 Steps)
+## Quick Start
 
 ### 1. Fork & Enable Pages
 
@@ -15,36 +15,60 @@ PDF to online bookshelf. Fork, read, done.
 3. Under **Source**, select **GitHub Actions**
 4. Go to the **Actions** tab, select **Deploy to GitHub Pages**, click **Run workflow** to trigger the first deployment
 
-Your site is now live at `https://<your-username>.github.io/pdf2book/`
+Your site is now live at `https://<your-username>.github.io/gitshelf/`
 
-### 2. Add MinerU Token
+### 2. Add MinerU Token (for PDF conversion)
 
 1. Register at [mineru.net](https://mineru.net) (free during beta)
 2. Copy your API token
 3. In your fork, go to **Settings > Secrets and variables > Actions**
 4. Click **New repository secret**, name it `MINERU_TOKEN`, paste the token
 
-### 3. Upload Your First Book
+> Only needed if you want to upload PDFs. Markdown and ZIP uploads work without this.
+
+### 3. Password Protection (Optional)
+
+1. In your fork, go to **Settings > Secrets and variables > Actions**
+2. Click **New repository secret**, name it `VITE_SITE_PASSWORD`, set your password
+3. Re-deploy — visitors must now enter the password to access the site
+
+> Leave unset to keep the site public.
+
+### 4. Upload Content
 
 1. Visit your site and click the gear icon in the top bar
 2. Enter a GitHub **Personal Access Token** with `repo` scope
-   ([Create one here](https://github.com/settings/tokens/new?scopes=repo&description=PDF2Book))
-3. Upload a PDF file
-4. Wait for the conversion to complete (progress is shown on screen)
-5. Your book appears on the bookshelf!
+   ([Create one here](https://github.com/settings/tokens/new?scopes=repo&description=GitShelf))
+3. Upload a file:
+   - **`.pdf`** — Converted to a multi-chapter book via MinerU API
+   - **`.md`** — Rendered directly as a document
+   - **`.zip`** — Extracted as a static site (must contain `index.html`)
+4. Wait for GitHub Actions to process (progress shown in Actions tab)
+5. Your content appears on the homepage!
+
+## Content Types
+
+| Type | Upload | Display |
+|------|--------|---------|
+| **Book** | `.pdf` file | Chapter reader with TOC sidebar, keyboard navigation |
+| **Document** | `.md` file | Single-page Markdown rendering with syntax highlighting |
+| **Site** | `.zip` file | Static site served directly (clicks open in new tab) |
 
 ## Features
 
 - **Reader** — Dark/light theme, chapter sidebar, keyboard navigation, code highlighting (Shiki), math rendering (KaTeX), responsive layout
-- **Admin** — Upload PDFs from browser, real-time conversion progress, catalog management (edit, publish, hide, archive, delete), search & filter
-- **Pipeline** — GitHub Actions converts PDFs via MinerU API, handles large files by auto-chunking, generates chapters + metadata
+- **Admin** — Upload PDFs/Markdown/ZIPs from browser, catalog management (edit, publish, hide, archive, delete), search & filter
+- **Pipeline** — GitHub Actions processes uploads automatically, handles large PDFs by auto-chunking
+- **Homepage** — Tab-based filtering: All / Books / Documents / Sites
 
 ## How It Works
 
 ```
-Upload PDF (browser → GitHub API → input/)
-  → GitHub Actions → MinerU API → Markdown
-  → Split chapters → docs/books/{id}/
+Upload content (browser → GitHub API → input/)
+  → GitHub Actions runs scripts/process.py
+  → .pdf: MinerU API → Markdown → Split chapters → docs/books/{id}/
+  → .md:  Copy to docs/articles/{id}/content.md
+  → .zip: Extract to docs/sites/{id}/
   → Build manifest → GitHub Pages deploys
 ```
 
@@ -64,11 +88,11 @@ python -m unittest discover -s tests/scripts -v # Python pipeline tests
 
 **Can I edit converted chapters?** Yes. Edit `.md` files in `docs/books/<id>/chapters/` and commit.
 
-**Will catalog edits survive re-convert?** Yes. Curated metadata is stored separately and merged back on rebuild.
+**Can I upload a static site?** Yes. Package it as a `.zip` with `index.html` at the root and upload through the admin panel.
 
 ## Disclaimer
 
-For **personal study and research only**. Users are responsible for ensuring they have the legal right to convert and host any PDF content. Do not upload copyrighted material without permission. See full disclaimer in the [LICENSE](LICENSE) file.
+For **personal study and research only**. Users are responsible for ensuring they have the legal right to convert and host any content. Do not upload copyrighted material without permission. See full disclaimer in the [LICENSE](LICENSE) file.
 
 ## License
 

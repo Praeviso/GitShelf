@@ -1,4 +1,4 @@
-import { useState, useCallback, lazy, Suspense } from 'preact/compat';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'preact/compat';
 import { useRouter } from '../hooks/useRouter';
 import { useTheme } from '../hooks/useTheme';
 import { useScrollProgress } from '../hooks/useScrollProgress';
@@ -6,9 +6,12 @@ import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { ScrollToTop } from './ScrollToTop';
 import { ToastContainer } from './ToastContainer';
-import { BookshelfView } from './BookshelfView';
-import { ReaderView } from './ReaderView';
+import { HomeView } from './HomeView';
+import { ChapterReader } from './ChapterReader';
+import { BookOverview } from './BookOverview';
+import { ArticleReader } from './ArticleReader';
 import { Footer } from './Footer';
+import { fetchManifest } from '../lib/api';
 
 const AdminView = lazy(() => import('./AdminView'));
 
@@ -20,7 +23,7 @@ export function App() {
   const [breadcrumb, setBreadcrumb] = useState('');
 
   const isChapter = route.type === 'chapter';
-  const isReaderRoute = route.type === 'book' || route.type === 'chapter';
+  const isBookRoute = route.type === 'book-overview' || route.type === 'chapter';
   const { progress, showScrollTop, scrollToTop } = useScrollProgress(isChapter);
 
   const handleToggleSidebar = useCallback(() => {
@@ -36,7 +39,29 @@ export function App() {
     setBreadcrumb(data?.title || '');
   }, []);
 
-  const showSidebar = isReaderRoute;
+  // Handle site redirect
+  useEffect(() => {
+    if (route.type === 'site') {
+      fetchManifest().then((manifest) => {
+        const item = manifest.items?.find((i) => i.id === route.siteId);
+        if (item?.entry) {
+          window.open(`./${item.entry}`, '_blank');
+        }
+        location.hash = '#/';
+      });
+    }
+  }, [route.type, route.siteId]);
+
+  // Reset sidebar state when leaving book routes
+  useEffect(() => {
+    if (!isBookRoute) {
+      setTocData(null);
+      setBreadcrumb('');
+      setSidebarOpen(false);
+    }
+  }, [isBookRoute]);
+
+  const showSidebar = isBookRoute;
 
   return (
     <>
@@ -46,7 +71,7 @@ export function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         breadcrumb={breadcrumb}
-        showBookshelfLink={route.type !== 'bookshelf'}
+        showHomeLink={route.type !== 'home'}
         showSidebarToggle={showSidebar}
         onToggleSidebar={handleToggleSidebar}
         sidebarExpanded={sidebarOpen}
@@ -65,15 +90,25 @@ export function App() {
       )}
 
       <main id="main-content" class={`main-content${showSidebar ? ' with-sidebar' : ''}`}>
-        {route.type === 'bookshelf' && <BookshelfView />}
-        {isReaderRoute && (
-          <ReaderView
-            key={route.bookId + (route.slug || '')}
+        {route.type === 'home' && <HomeView />}
+        {route.type === 'book-overview' && (
+          <BookOverview
+            key={route.bookId}
+            bookId={route.bookId}
+            onTocLoaded={handleTocLoaded}
+          />
+        )}
+        {route.type === 'chapter' && (
+          <ChapterReader
+            key={route.bookId + route.slug}
             bookId={route.bookId}
             slug={route.slug}
             anchor={route.anchor}
             onTocLoaded={handleTocLoaded}
           />
+        )}
+        {route.type === 'article' && (
+          <ArticleReader key={route.articleId} articleId={route.articleId} />
         )}
         {route.type === 'admin' && (
           <Suspense fallback={<div class="admin-container"><p>Loading admin panel...</p></div>}>

@@ -5,18 +5,28 @@ function parseRoute(hash) {
   const path = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
   const anchor = hash.includes('#') ? hash.slice(hash.indexOf('#') + 1) : null;
 
-  if (path === '/') return { type: 'bookshelf' };
+  if (path === '/' || path === '') return { type: 'home' };
   if (path === '/admin') return { type: 'admin' };
 
-  const chapterMatch = path.match(/^\/([^/]+)\/chapters\/([^/]+)$/);
+  // Book chapter: /books/{id}/{slug}
+  const chapterMatch = path.match(/^\/books\/([^/]+)\/([^/]+)$/);
   if (chapterMatch) {
     return { type: 'chapter', bookId: chapterMatch[1], slug: chapterMatch[2], anchor };
   }
 
-  const bookMatch = path.match(/^\/([^/]+)$/);
-  if (bookMatch) return { type: 'book', bookId: bookMatch[1] };
+  // Book overview: /books/{id}
+  const bookMatch = path.match(/^\/books\/([^/]+)$/);
+  if (bookMatch) return { type: 'book-overview', bookId: bookMatch[1] };
 
-  return { type: 'bookshelf' };
+  // Article: /articles/{id}
+  const articleMatch = path.match(/^\/articles\/([^/]+)$/);
+  if (articleMatch) return { type: 'article', articleId: articleMatch[1] };
+
+  // Site: /sites/{id}
+  const siteMatch = path.match(/^\/sites\/([^/]+)$/);
+  if (siteMatch) return { type: 'site', siteId: siteMatch[1] };
+
+  return { type: 'home' };
 }
 
 export function useRouter() {

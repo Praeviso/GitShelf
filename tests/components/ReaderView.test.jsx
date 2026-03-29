@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor } from '@testing-library/preact';
-import { ReaderView } from '../../src/components/ReaderView';
+import { ChapterReader } from '../../src/components/ChapterReader';
 
 function mockFetch(responses = {}) {
   return vi.fn((url) => {
@@ -27,10 +27,10 @@ function mockFetch(responses = {}) {
 beforeEach(() => {
   global.fetch = undefined;
   window.location.hash = '#/';
-  document.title = 'PDF2Book';
+  document.title = 'GitShelf';
 });
 
-describe('ReaderView', () => {
+describe('ChapterReader', () => {
   it('rewrites chapter image paths to the book image directory', async () => {
     global.fetch = mockFetch({
       'books/my-book/toc.json': { title: 'My Book', children: [] },
@@ -38,7 +38,7 @@ describe('ReaderView', () => {
     });
 
     const { container } = render(
-      <ReaderView bookId="my-book" slug="chapter-1" anchor={null} onTocLoaded={() => {}} />
+      <ChapterReader bookId="my-book" slug="chapter-1" anchor={null} onTocLoaded={() => {}} />
     );
 
     await waitFor(() => expect(container.querySelector('img')).toBeInTheDocument());
@@ -52,7 +52,7 @@ describe('ReaderView', () => {
     });
 
     const { container } = render(
-      <ReaderView bookId="my-book" slug="chapter-1" anchor={null} onTocLoaded={() => {}} />
+      <ChapterReader bookId="my-book" slug="chapter-1" anchor={null} onTocLoaded={() => {}} />
     );
 
     await waitFor(() => expect(container.querySelector('img')).toBeInTheDocument());
@@ -66,7 +66,7 @@ describe('ReaderView', () => {
     });
 
     const { container } = render(
-      <ReaderView bookId="my-book" slug="chapter-1" anchor={null} onTocLoaded={() => {}} />
+      <ChapterReader bookId="my-book" slug="chapter-1" anchor={null} onTocLoaded={() => {}} />
     );
 
     await waitFor(() => expect(container.querySelector('img')).toBeInTheDocument());

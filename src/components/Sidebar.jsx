@@ -27,9 +27,9 @@ function SidebarItem({ item, bookId, activeSlug, depth }) {
   }, [containsActive]);
 
   const href = item.anchor
-    ? `#/${bookId}/chapters/${item.slug}#${item.anchor}`
+    ? `#/books/${bookId}/${item.slug}#${item.anchor}`
     : item.slug
-      ? `#/${bookId}/chapters/${item.slug}`
+      ? `#/books/${bookId}/${item.slug}`
       : undefined;
 
   const nestedId = hasChildren ? `toc-section-${item.slug || depth}` : undefined;

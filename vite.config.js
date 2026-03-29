@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { existsSync, readFileSync } from 'fs';
+import { createHash } from 'crypto';
 import preact from '@preact/preset-vite';
 
 const MIME_TYPES = {
@@ -22,7 +23,7 @@ function serveDocsData() {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = req.url?.split('?')[0];
-        if (url && (url.startsWith('/manifest.json') || url.startsWith('/catalog') || url.startsWith('/books/'))) {
+        if (url && (url.startsWith('/manifest.json') || url.startsWith('/catalog') || url.startsWith('/books/') || url.startsWith('/articles/') || url.startsWith('/sites/'))) {
           const filePath = resolve(docsDir, url.slice(1));
           if (existsSync(filePath)) {
             const content = readFileSync(filePath);
@@ -36,6 +37,13 @@ function serveDocsData() {
       });
     },
   };
+}
+
+// Hash plaintext VITE_SITE_PASSWORD at build time so the original password never reaches the bundle.
+function getSitePasswordHash() {
+  const plain = process.env.VITE_SITE_PASSWORD;
+  if (plain) return createHash('sha256').update(plain).digest('hex');
+  return '';
 }
 
 export default defineConfig({
@@ -53,6 +61,9 @@ export default defineConfig({
     outDir: '../docs',
     emptyOutDir: false,
     assetsDir: 'assets',
+  },
+  define: {
+    'import.meta.env.VITE_SITE_PASSWORD_HASH': JSON.stringify(getSitePasswordHash()),
   },
   publicDir: false,
   server: {

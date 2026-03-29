@@ -1,5 +1,5 @@
 {
-  "name": "pdf2book",
+  "name": "gitshelf",
   "private": true,
   "scripts": {
     "dev": "vite",

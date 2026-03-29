@@ -3,8 +3,8 @@ import { showToast } from '../lib/toast';
 import ConfirmDialog from './ConfirmDialog';
 import {
   getPat, setPat, clearPat, verifyPat, detectRepo, saveRepo,
-  getSplitLevel, fetchCatalog, persistCatalog, deepCloneBooks,
-  uploadPdf as apiUploadPdf, triggerReconvert, deleteBookPermanently,
+  getSplitLevel, fetchCatalog, persistCatalog, deepCloneItems,
+  uploadContent as apiUploadContent, triggerReconvert, deleteItemPermanently,
   saveSplitLevelConfig, loadHistory, fetchFailures, dismissFailure, retryFailure,
   getDisplayTitle, normalizeVisibility,
   normalizeTags, parseTagsInput, formatBytes, dateFormatter, dateTimeFormatter,
@@ -58,10 +58,11 @@ function UploadSection({ repo, disabled }) {
   const handleFile = async (file) => {
     if (!file || disabled) return;
     setError('');
-    if (!file.name.toLowerCase().endsWith('.pdf')) { setError('Only .pdf files are accepted.'); return; }
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf', 'md', 'zip'].includes(ext)) { setError('Only .pdf, .md, and .zip files are accepted.'); return; }
     if (file.size > MAX_FILE_SIZE) { setError(`File too large (${formatBytes(file.size)}). Max 100 MB.`); return; }
     try {
-      await apiUploadPdf(file, repo, (stage, msg) => setProgress({ stage, msg }));
+      await apiUploadContent(file, repo, (stage, msg) => setProgress({ stage, msg }));
       setProgress({ stage: 'done', msg: 'uploaded', filename: file.name });
       showToast('PDF uploaded successfully', 'success');
     } catch (err) { setError(err.message); setProgress({ stage: 'error', msg: 'Upload failed.' }); }
@@ -86,7 +87,7 @@ function UploadSection({ repo, disabled }) {
           role="button"
           tabIndex="0"
           aria-label="Upload PDF file"
-          onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.pdf'; i.onchange = () => handleFile(i.files[0]); i.click(); }}
+          onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.pdf,.md,.zip'; i.onchange = () => handleFile(i.files[0]); i.click(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); }}}
           onDragEnter={(e) => { e.preventDefault(); dragCounter++; setDragOver(true); }}
           onDragOver={(e) => e.preventDefault()}
@@ -132,8 +133,8 @@ function FailuresSection({ repo }) {
   // Listen for catalog updates (e.g. after upload triggers a new conversion)
   useEffect(() => {
     const handler = () => load();
-    window.addEventListener('pdf2book:catalog-updated', handler);
-    return () => window.removeEventListener('pdf2book:catalog-updated', handler);
+    window.addEventListener('gitshelf:catalog-updated', handler);
+    return () => window.removeEventListener('gitshelf:catalog-updated', handler);
   }, [load]);
 
   if (!repoReady) return null;
@@ -347,7 +348,7 @@ function CatalogSection({ repo }) {
     if (visFilter !== 'all' && normalizeVisibility(b.visibility) !== visFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      return [b.id, b.title, b.display_title, b.author, b.summary, b.source_pdf, ...(b.tags || [])].some((f) => String(f || '').toLowerCase().includes(q));
+      return [b.id, b.title, b.display_title, b.author, b.summary, b.source, ...(b.tags || [])].some((f) => String(f || '').toLowerCase().includes(q));
     }
     return true;
   }).sort((a, b) => {
@@ -364,7 +365,7 @@ function CatalogSection({ repo }) {
   const bulkVisibility = async (vis) => {
     if (selected.size === 0) { setBulkError('Select at least one book.'); return; }
     setBulkError('');
-    const next = deepCloneBooks(catalog).map((b) => selected.has(b.id) ? { ...b, visibility: vis, updated_at: toIsoNow() } : b);
+    const next = deepCloneItems(catalog).map((b) => selected.has(b.id) ? { ...b, visibility: vis, updated_at: toIsoNow() } : b);
     try {
       await persistCatalog(repo, next, `chore(admin): bulk set visibility=${vis} (${selected.size} books)`);
       setCatalog(next); setSelected(new Set());
@@ -373,7 +374,7 @@ function CatalogSection({ repo }) {
   };
 
   const handleSaveBook = async (updated) => {
-    const next = deepCloneBooks(catalog).map((b) => b.id === updated.id ? updated : b);
+    const next = deepCloneItems(catalog).map((b) => b.id === updated.id ? updated : b);
     await persistCatalog(repo, next, `chore(admin): update catalog metadata for ${updated.id}`);
     setCatalog(next); setEditingId(null);
     showToast('Metadata saved', 'success');
@@ -388,7 +389,7 @@ function CatalogSection({ repo }) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const next = await deleteBookPermanently(deleteTarget, repo, catalog);
+      const next = await deleteItemPermanently(deleteTarget, repo, catalog);
       setCatalog(next); setSelected((s) => { const n = new Set(s); n.delete(deleteTarget.id); return n; });
       setEditingId(null);
       setDeleteTarget(null);
@@ -400,7 +401,7 @@ function CatalogSection({ repo }) {
   const quickVisibilityChange = async (book) => {
     const cycle = { published: 'hidden', hidden: 'archived', archived: 'published' };
     const nextVis = cycle[normalizeVisibility(book.visibility)];
-    const next = deepCloneBooks(catalog).map((b) => b.id === book.id ? { ...b, visibility: nextVis, updated_at: toIsoNow() } : b);
+    const next = deepCloneItems(catalog).map((b) => b.id === book.id ? { ...b, visibility: nextVis, updated_at: toIsoNow() } : b);
     try {
       await persistCatalog(repo, next, `chore(admin): set visibility=${nextVis} for ${book.id}`);
       setCatalog(next);
@@ -545,7 +546,7 @@ function CatalogSection({ repo }) {
                       </td>
                       <td>
                         <div class="admin-provenance">
-                          <span class="admin-mono">{book.source_pdf || 'source_pdf not set'}</span>
+                          <span class="admin-mono">{book.source || 'source not set'}</span>
                           <span class="admin-book-subtle">Converted: {book.converted_at ? dateTimeFormatter.format(new Date(book.converted_at)) : 'N/A'}</span>
                         </div>
                       </td>
@@ -588,7 +589,7 @@ function CatalogSection({ repo }) {
                 </div>
                 <div class="admin-catalog-card-meta">
                   {book.author && <span>{book.author}</span>}
-                  {book.source_pdf && <span class="admin-mono">{book.source_pdf}</span>}
+                  {book.source && <span class="admin-mono">{book.source}</span>}
                   <span class="admin-book-subtle">
                     {[book.chapters_count != null && `${numberFormatter.format(book.chapters_count)} ch`, book.word_count != null && `${numberFormatter.format(book.word_count)} words`].filter(Boolean).join(' \u00b7 ')}
                   </span>

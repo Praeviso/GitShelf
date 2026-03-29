@@ -28,21 +28,22 @@ beforeEach(() => {
 });
 
 describe('App', () => {
-  it('renders bookshelf heading on root route', async () => {
+  it('renders home heading on root route', async () => {
     global.fetch = mockFetch({
-      'manifest.json': { books: [] },
+      'manifest.json': { items: [] },
     });
 
     render(<App />);
 
-    expect(await screen.findByText('Bookshelf')).toBeInTheDocument();
+    const elements = await screen.findAllByText('GitShelf');
+    expect(elements.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders book cards when manifest has books', async () => {
+  it('renders content cards when manifest has items', async () => {
     global.fetch = mockFetch({
       'manifest.json': {
-        books: [
-          { id: 'test-book', title: 'Test Book', chapters_count: 5, word_count: 10000 },
+        items: [
+          { id: 'test-book', type: 'book', title: 'Test Book', chapters_count: 5, word_count: 10000 },
         ],
       },
     });
@@ -54,19 +55,19 @@ describe('App', () => {
     expect(screen.getByText(/5 chapters/)).toBeInTheDocument();
   });
 
-  it('shows empty state when no books', async () => {
+  it('shows empty state when no items', async () => {
     global.fetch = mockFetch({
-      'manifest.json': { books: [] },
+      'manifest.json': { items: [] },
     });
 
     render(<App />);
 
-    expect(await screen.findByText('No books yet')).toBeInTheDocument();
+    expect(await screen.findByText('No content yet')).toBeInTheDocument();
     expect(screen.getByText('admin panel')).toHaveAttribute('href', '#/admin');
   });
 
   it('renders theme toggle button', () => {
-    global.fetch = mockFetch({ 'manifest.json': { books: [] } });
+    global.fetch = mockFetch({ 'manifest.json': { items: [] } });
     render(<App />);
 
     const btn = screen.getByLabelText(/switch to dark theme/i);
@@ -74,7 +75,7 @@ describe('App', () => {
   });
 
   it('renders admin link', () => {
-    global.fetch = mockFetch({ 'manifest.json': { books: [] } });
+    global.fetch = mockFetch({ 'manifest.json': { items: [] } });
     render(<App />);
 
     const link = screen.getByLabelText('Settings');

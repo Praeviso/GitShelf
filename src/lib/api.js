@@ -1,4 +1,4 @@
-// Fetch helpers for public data (manifest, toc, chapters)
+// Fetch helpers for public data (manifest, toc, chapters, articles)
 
 export async function fetchManifest() {
   const res = await fetch('./manifest.json');
@@ -27,12 +27,29 @@ export function flattenChapters(items) {
   return result;
 }
 
-export function getBookDisplayTitle(book) {
-  if (!book) return 'Untitled';
-  return String(book.title || book.display_title || book.id || 'Untitled');
+export function getItemDisplayTitle(item) {
+  if (!item) return 'Untitled';
+  return String(item.title || item.display_title || item.id || 'Untitled');
 }
 
 export function formatWordCount(count) {
   if (count >= 1000) return `${Math.round(count / 1000)}k`;
   return String(count);
+}
+
+export function getItemType(item) {
+  return item?.type || 'book';
+}
+
+// Route helpers for each content type
+export function getItemHref(item) {
+  const type = getItemType(item);
+  if (type === 'book') return `#/books/${item.id}`;
+  if (type === 'doc') return `#/articles/${item.id}`;
+  if (type === 'site') return `./${item.entry}`;
+  return `#/books/${item.id}`;
+}
+
+export function getItemTarget(item) {
+  return getItemType(item) === 'site' ? '_blank' : undefined;
 }

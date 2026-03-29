@@ -272,6 +272,7 @@ button {
   text-overflow: ellipsis;
 }
 
+.top-bar-home-link,
 .top-bar-bookshelf-link {
   font-size: 14px;
   font-weight: 500;
@@ -283,6 +284,7 @@ button {
   border-right: 1px solid var(--color-border);
 }
 
+.top-bar-home-link:hover,
 .top-bar-bookshelf-link:hover {
   color: var(--color-accent);
 }
@@ -3316,6 +3318,110 @@ button {
 /* ==========================================================================
    17. Print Styles
    ========================================================================== */
+
+/* --- GitShelf: Class aliases (new names → existing styles) --- */
+
+.home-container { max-width: var(--bookshelf-max-width); margin: 0 auto; }
+.home-heading { font-family: var(--font-ui); font-size: 24px; font-weight: 700; color: var(--color-text-heading); margin: 0 0 var(--space-6) 0; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-4); }
+.home-empty { text-align: center; color: var(--color-text-secondary); font-family: var(--font-ui); font-size: 16px; padding: var(--space-12) var(--space-4); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); background-color: var(--color-bg-surface); }
+.home-empty-icon { display: block; margin: 0 auto var(--space-4); color: var(--color-text-tertiary); }
+.home-error { padding: var(--space-4); border-radius: var(--radius-md); background-color: rgba(197, 48, 48, 0.1); color: var(--color-error); font-family: var(--font-ui); }
+
+/* Content card: mirrors book-card styles */
+.content-card { display: flex; flex-direction: column; text-decoration: none; color: inherit; border-radius: var(--radius-lg); overflow: hidden; background-color: var(--color-bg-surface); border: 1px solid var(--color-border); box-shadow: var(--shadow-subtle); transition: transform var(--transition-normal) ease, box-shadow var(--transition-normal) ease; }
+.content-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+.content-card-cover { position: relative; aspect-ratio: 6/7; display: flex; align-items: center; justify-content: center; padding: var(--space-4); overflow: hidden; transition: filter var(--transition-normal) ease, transform var(--transition-normal) ease; }
+.content-card-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.35)); pointer-events: none; }
+.content-card:hover .content-card-cover { filter: brightness(1.05); transform: scale(1.03); }
+.content-card-cover--featured::before { content: ''; position: absolute; inset: 0; border: 2px solid rgba(255,255,255,0.3); border-radius: var(--radius-md); z-index: 1; pointer-events: none; }
+.content-card-cover-title { position: relative; z-index: 1; font-family: var(--font-reading); font-size: 16px; font-weight: 600; color: #fff; text-align: center; text-shadow: 0 1px 4px rgba(0,0,0,0.4); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; max-width: 90%; }
+.content-card-info { padding: var(--space-3); flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
+.content-card-badge { font-family: var(--font-ui); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-accent); }
+.content-card-title { font-family: var(--font-ui); font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--color-text-heading); margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.content-card-byline { font-family: var(--font-ui); font-size: 12px; color: var(--color-text-secondary); margin: 0; }
+.content-card-summary { font-family: var(--font-ui); font-size: 12px; color: var(--color-text-tertiary); line-height: 1.4; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.content-card-meta { font-family: var(--font-ui); font-size: 12px; color: var(--color-text-tertiary); margin-top: auto; padding-top: var(--space-1); }
+.content-card-tags { list-style: none; padding: 0; margin: var(--space-1) 0 0; display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.content-card-tag { font-family: var(--font-ui); font-size: 11px; padding: 1px 6px; border-radius: var(--radius-sm); background: var(--color-bg-page); color: var(--color-text-tertiary); border: 1px solid var(--color-border); }
+
+/* Type badge on card cover */
+.content-card-type-badge {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 2;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+/* External link icon on site cards */
+.content-card-external {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 2;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* --- Tabs --- */
+
+.home-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0;
+}
+
+.home-tab {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.home-tab:hover {
+  color: var(--color-text-heading);
+}
+
+.home-tab--active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* --- Article breadcrumb --- */
+
+.article-breadcrumb {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  margin-bottom: var(--space-4);
+}
+
+.article-breadcrumb a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.article-breadcrumb a:hover {
+  color: var(--color-accent);
+}
 
 @media print {
   .top-bar,

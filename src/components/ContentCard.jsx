@@ -1,5 +1,5 @@
 import { generateCoverGradient } from '../lib/covers';
-import { getItemDisplayTitle, formatWordCount, getItemType, getItemHref, getItemTarget } from '../lib/api';
+import { getItemDisplayTitle, formatWordCount, formatRelativeDate, getItemType, getItemHref, getItemTarget } from '../lib/api';
 
 const TYPE_BADGES = {
   doc: 'DOC',
@@ -34,6 +34,7 @@ export function ContentCard({ item }) {
     metaParts.push('Static site');
   }
 
+  const dateLabel = formatRelativeDate(item.created_at);
   const badge = TYPE_BADGES[type];
   const href = getItemHref(item);
   const target = getItemTarget(item);
@@ -54,7 +55,13 @@ export function ContentCard({ item }) {
         <h2 class="content-card-title">{title}</h2>
         {byline && <p class="content-card-byline">{byline}</p>}
         {summary && <p class="content-card-summary">{summary}</p>}
-        {metaParts.length > 0 && <div class="content-card-meta">{metaParts.join(' \u00b7 ')}</div>}
+        {(metaParts.length > 0 || dateLabel) && (
+          <div class="content-card-meta">
+            {metaParts.length > 0 && <span>{metaParts.join(' \u00b7 ')}</span>}
+            {metaParts.length > 0 && dateLabel && <span class="content-card-meta-sep">{' \u00b7 '}</span>}
+            {dateLabel && <span class="content-card-date">{dateLabel}</span>}
+          </div>
+        )}
         {tags.length > 0 && (
           <ul class="content-card-tags">
             {tags.slice(0, 3).map((tag) => (

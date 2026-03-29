@@ -34,11 +34,31 @@ describe('useRouter', () => {
     expect(result.current.slug).toBe('ch-01');
   });
 
+  it('treats removed legacy chapter routes as unknown', () => {
+    window.location.hash = '#/legacy-book/chapters/ch-01';
+    const { result } = renderHook(() => useRouter());
+    expect(result.current.type).toBe('home');
+  });
+
+  it('treats removed legacy book overview routes as unknown', () => {
+    window.location.hash = '#/legacy-book';
+    const { result } = renderHook(() => useRouter());
+    expect(result.current.type).toBe('home');
+  });
+
   it('returns article route for #/articles/doc-id', () => {
     window.location.hash = '#/articles/my-doc';
     const { result } = renderHook(() => useRouter());
     expect(result.current.type).toBe('article');
     expect(result.current.articleId).toBe('my-doc');
+  });
+
+  it('captures article anchors', () => {
+    window.location.hash = '#/articles/my-doc#section-a';
+    const { result } = renderHook(() => useRouter());
+    expect(result.current.type).toBe('article');
+    expect(result.current.articleId).toBe('my-doc');
+    expect(result.current.anchor).toBe('section-a');
   });
 
   it('returns site route for #/sites/site-id', () => {

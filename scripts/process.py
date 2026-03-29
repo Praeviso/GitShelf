@@ -29,6 +29,7 @@ try:
     from .convert import (
         convert_single_pdf,
         detect_new_pdfs,
+        ensure_unique_content_id,
         generate_book_id,
         reconvert_from_cache,
         _read_config_split_level,
@@ -39,6 +40,7 @@ except ImportError:
     from convert import (
         convert_single_pdf,
         detect_new_pdfs,
+        ensure_unique_content_id,
         generate_book_id,
         reconvert_from_cache,
         _read_config_split_level,
@@ -65,6 +67,97 @@ def _count_words(text: str) -> int:
     return len(text.split())
 
 
+LOCAL_ASSET_PATTERN = re.compile(
+    r"""
+    !\[[^\]]*\]\(([^)]+)\)
+    |
+    <img\b[^>]*\bsrc=["']([^"']+)["']
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _normalize_markdown_asset_path(raw: str) -> Path | None:
+    value = str(raw or "").strip()
+    if (
+        not value
+        or value.startswith(("/", "#", "//", "data:"))
+        or re.match(r"^[a-z][a-z0-9+.-]*:", value, flags=re.IGNORECASE)
+    ):
+        return None
+
+    match = re.match(r"^(?:\.\./|\.?/)*images/(.+)$", value)
+    if not match:
+        return None
+
+    relative = Path("images") / match.group(1)
+    return relative
+
+
+def _find_local_markdown_assets(markdown: str) -> list[Path]:
+    assets: list[Path] = []
+    seen: set[str] = set()
+    for match in LOCAL_ASSET_PATTERN.finditer(markdown):
+        asset = _normalize_markdown_asset_path(match.group(1) or match.group(2))
+        if asset is None:
+            continue
+
+        key = asset.as_posix()
+        if key in seen:
+            continue
+        seen.add(key)
+        assets.append(asset)
+    return assets
+
+
+def _iter_markdown_sidecar_dirs(md_path: Path) -> list[Path]:
+    base = md_path.stem
+    return [
+        md_path.with_suffix(""),
+        md_path.parent / f"{base}.assets",
+        md_path.parent / f"{base}.files",
+        md_path.parent / f"{base}_files",
+    ]
+
+
+def _copy_markdown_sidecars(md_path: Path, article_dir: Path) -> None:
+    for candidate in _iter_markdown_sidecar_dirs(md_path):
+        if not candidate.is_dir():
+            continue
+
+        for item in candidate.iterdir():
+            dest = article_dir / item.name
+            if dest.exists():
+                if dest.is_dir():
+                    shutil.rmtree(dest)
+                else:
+                    dest.unlink()
+
+            if item.is_dir():
+                shutil.copytree(item, dest)
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(item, dest)
+
+
+def _validate_markdown_assets(markdown: str, article_dir: Path) -> None:
+    missing = [
+        asset.as_posix()
+        for asset in _find_local_markdown_assets(markdown)
+        if not (article_dir / asset).exists()
+    ]
+    if not missing:
+        return
+
+    names = ", ".join(missing[:3])
+    if len(missing) > 3:
+        names += ", ..."
+    raise ValueError(
+        f"Markdown references local assets that were not supplied: {names}. "
+        "Add a sidecar asset directory next to the markdown file."
+    )
+
+
 def process_markdown(md_path: Path, output_dir: Path) -> None:
     """Process a single .md file into an article.
 
@@ -73,7 +166,7 @@ def process_markdown(md_path: Path, output_dir: Path) -> None:
         content.md   - the markdown content
         meta.json    - article metadata
     """
-    article_id = _generate_id(md_path)
+    article_id = ensure_unique_content_id(_generate_id(md_path), output_dir.parent, "doc")
     title = md_path.stem
     print(f"Processing markdown: {md_path.name} -> {article_id}")
 
@@ -81,25 +174,33 @@ def process_markdown(md_path: Path, output_dir: Path) -> None:
     word_count = _count_words(content)
 
     article_dir = output_dir / article_id
-    article_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        if article_dir.exists():
+            shutil.rmtree(article_dir)
+        article_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write content
-    (article_dir / "content.md").write_text(content, encoding="utf-8")
+        # Write content
+        (article_dir / "content.md").write_text(content, encoding="utf-8")
+        _copy_markdown_sidecars(md_path, article_dir)
+        _validate_markdown_assets(content, article_dir)
 
-    # Write metadata
-    meta = {
-        "id": article_id,
-        "type": "doc",
-        "title": title,
-        "source": md_path.name,
-        "word_count": word_count,
-        "created_at": _utc_now_iso(),
-        "updated_at": _utc_now_iso(),
-    }
-    (article_dir / "meta.json").write_text(
-        json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+        # Write metadata
+        meta = {
+            "id": article_id,
+            "type": "doc",
+            "title": title,
+            "source": md_path.name,
+            "word_count": word_count,
+            "created_at": _utc_now_iso(),
+            "updated_at": _utc_now_iso(),
+        }
+        (article_dir / "meta.json").write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        shutil.rmtree(article_dir, ignore_errors=True)
+        raise
 
     # Delete source
     md_path.unlink(missing_ok=True)
@@ -135,7 +236,7 @@ def process_site(zip_path: Path, output_dir: Path) -> None:
         index.html   - required entry point
         ...other files
     """
-    site_id = _generate_id(zip_path)
+    site_id = ensure_unique_content_id(_generate_id(zip_path), output_dir.parent, "site")
     print(f"Processing site: {zip_path.name} -> {site_id}")
 
     site_dir = output_dir / site_id
@@ -212,6 +313,9 @@ def main() -> None:
     sites_dir = args.output_dir / "sites"
 
     input_filename = os.environ.get("INPUT_FILENAME", "").strip()
+    manifest_path = args.output_dir / "manifest.json"
+    catalog_path = args.output_dir / "catalog.json"
+    metadata_path = args.output_dir / "catalog-metadata.json"
 
     # Collect jobs by type
     pdf_jobs: list[Path] = []
@@ -237,7 +341,14 @@ def main() -> None:
                 print(f"PDF not found, attempting reconvert from cache: {input_filename}")
                 try:
                     reconvert_from_cache(input_filename, books_dir, args.split_level)
-                    build_manifest(books_dir, articles_dir=articles_dir, sites_dir=sites_dir)
+                    build_manifest(
+                        books_dir=books_dir,
+                        output_path=manifest_path,
+                        catalog_metadata_path=metadata_path,
+                        catalog_output_path=catalog_path,
+                        articles_dir=articles_dir,
+                        sites_dir=sites_dir,
+                    )
                     print("Manifest rebuilt.")
                     return
                 except FileNotFoundError as exc:
@@ -272,6 +383,7 @@ def main() -> None:
     for md_path in md_jobs:
         try:
             process_markdown(md_path, articles_dir)
+            _remove_failure(md_path.name, args.output_dir)
         except Exception as exc:
             print(f"  FAILED: {md_path.name}: {exc}", file=sys.stderr)
             failures.append((md_path, exc))
@@ -280,12 +392,20 @@ def main() -> None:
     for zip_path in zip_jobs:
         try:
             process_site(zip_path, sites_dir)
+            _remove_failure(zip_path.name, args.output_dir)
         except Exception as exc:
             print(f"  FAILED: {zip_path.name}: {exc}", file=sys.stderr)
             failures.append((zip_path, exc))
 
     # Rebuild manifest
-    build_manifest(books_dir, articles_dir=articles_dir, sites_dir=sites_dir)
+    build_manifest(
+        books_dir=books_dir,
+        output_path=manifest_path,
+        catalog_metadata_path=metadata_path,
+        catalog_output_path=catalog_path,
+        articles_dir=articles_dir,
+        sites_dir=sites_dir,
+    )
     print("Manifest rebuilt.")
 
     if failures:

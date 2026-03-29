@@ -47,6 +47,7 @@ export function BookOverview({ bookId, onTocLoaded }) {
   const totalChapters = items.length;
   const wordCount = bookMeta?.word_count || 0;
   const firstChapter = items[0];
+  const encodedBookId = encodeURIComponent(bookId);
 
   return (
     <div class="book-overview view-enter">
@@ -58,7 +59,7 @@ export function BookOverview({ bookId, onTocLoaded }) {
           {wordCount > 0 && <span>~{Math.ceil(wordCount / 250)} min read</span>}
         </div>
         {firstChapter && (
-          <a class="book-overview-cta" href={`#/books/${bookId}/${firstChapter.slug}`}>
+          <a class="book-overview-cta" href={`#/books/${encodedBookId}/${encodeURIComponent(firstChapter.slug)}`}>
             Start Reading
           </a>
         )}
@@ -67,7 +68,7 @@ export function BookOverview({ bookId, onTocLoaded }) {
       <ol class="book-overview-toc">
         {items.map((item) => (
           <li key={item.slug} class="book-overview-toc-item">
-            <a class="book-overview-toc-link" href={`#/books/${bookId}/${item.slug}`}>
+            <a class="book-overview-toc-link" href={`#/books/${encodedBookId}/${encodeURIComponent(item.slug)}`}>
               <span class="book-overview-toc-title">{item.title}</span>
               {item.children && item.children.length > 0 && (
                 <span class="book-overview-toc-count">{item.children.length} sections</span>

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { fetchText } from '../lib/api';
 import { renderMarkdown, highlightCodeBlocks, addCopyButtons } from '../lib/markdown';
 
-export function ArticleReader({ articleId }) {
+export function ArticleReader({ articleId, anchor }) {
   const [content, setContent] = useState(null);
   const [error, setError] = useState(null);
   const contentRef = useRef(null);
@@ -43,10 +43,20 @@ export function ArticleReader({ articleId }) {
     }
   }, [content]);
 
-  // Scroll to top on load
+  // Scroll to anchor or top on load
   useEffect(() => {
-    if (content !== null) window.scrollTo(0, 0);
-  }, [content]);
+    if (content === null) return;
+    if (anchor) {
+      requestAnimationFrame(() => {
+        const target = document.getElementById(anchor);
+        if (!target) return;
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        target.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth', block: 'start' });
+      });
+      return;
+    }
+    window.scrollTo(0, 0);
+  }, [content, anchor]);
 
   // Heading anchor click to copy link
   useEffect(() => {
@@ -57,7 +67,7 @@ export function ArticleReader({ articleId }) {
       if (!anchor) return;
       e.preventDefault();
       const id = anchor.dataset.anchor;
-      const url = `${location.origin}${location.pathname}#/articles/${articleId}#${id}`;
+      const url = `${location.origin}${location.pathname}#/articles/${encodeURIComponent(articleId)}#${encodeURIComponent(id)}`;
       navigator.clipboard.writeText(url);
       const target = document.getElementById(id);
       if (target) {

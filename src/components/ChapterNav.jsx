@@ -4,11 +4,12 @@ export function ChapterNav({ bookId, chapters, currentIndex, wordCount }) {
   const prev = currentIndex > 0 ? chapters[currentIndex - 1] : null;
   const next = currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null;
   const readingTime = wordCount > 0 ? Math.max(1, Math.ceil(wordCount / 250)) : 0;
+  const encodedBookId = encodeURIComponent(bookId);
 
   return (
     <nav class="chapter-nav" aria-label="Chapter navigation">
       {prev ? (
-        <a class="chapter-nav-link chapter-nav-link--prev" href={`#/books/${bookId}/${prev.slug}`}>
+        <a class="chapter-nav-link chapter-nav-link--prev" href={`#/books/${encodedBookId}/${encodeURIComponent(prev.slug)}`}>
           <span class="chapter-nav-label">Previous</span>
           <span class="chapter-nav-title">{prev.title}</span>
         </a>
@@ -22,7 +23,7 @@ export function ChapterNav({ bookId, chapters, currentIndex, wordCount }) {
       </span>
 
       {next ? (
-        <a class="chapter-nav-link chapter-nav-link--next" href={`#/books/${bookId}/${next.slug}`}>
+        <a class="chapter-nav-link chapter-nav-link--next" href={`#/books/${encodedBookId}/${encodeURIComponent(next.slug)}`}>
           <span class="chapter-nav-label">Next</span>
           <span class="chapter-nav-title">{next.title}</span>
         </a>

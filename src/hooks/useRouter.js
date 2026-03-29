@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'preact/hooks';
 
+function decodeSegment(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function parseRoute(hash) {
   const rawPath = hash.split('#')[0];
   const path = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
-  const anchor = hash.includes('#') ? hash.slice(hash.indexOf('#') + 1) : null;
+  const anchor = hash.includes('#') ? decodeSegment(hash.slice(hash.indexOf('#') + 1)) : null;
 
   if (path === '/' || path === '') return { type: 'home' };
   if (path === '/admin') return { type: 'admin' };
@@ -11,20 +19,25 @@ function parseRoute(hash) {
   // Book chapter: /books/{id}/{slug}
   const chapterMatch = path.match(/^\/books\/([^/]+)\/([^/]+)$/);
   if (chapterMatch) {
-    return { type: 'chapter', bookId: chapterMatch[1], slug: chapterMatch[2], anchor };
+    return {
+      type: 'chapter',
+      bookId: decodeSegment(chapterMatch[1]),
+      slug: decodeSegment(chapterMatch[2]),
+      anchor,
+    };
   }
 
   // Book overview: /books/{id}
   const bookMatch = path.match(/^\/books\/([^/]+)$/);
-  if (bookMatch) return { type: 'book-overview', bookId: bookMatch[1] };
+  if (bookMatch) return { type: 'book-overview', bookId: decodeSegment(bookMatch[1]) };
 
   // Article: /articles/{id}
   const articleMatch = path.match(/^\/articles\/([^/]+)$/);
-  if (articleMatch) return { type: 'article', articleId: articleMatch[1] };
+  if (articleMatch) return { type: 'article', articleId: decodeSegment(articleMatch[1]), anchor };
 
   // Site: /sites/{id}
   const siteMatch = path.match(/^\/sites\/([^/]+)$/);
-  if (siteMatch) return { type: 'site', siteId: siteMatch[1] };
+  if (siteMatch) return { type: 'site', siteId: decodeSegment(siteMatch[1]) };
 
   return { type: 'home' };
 }

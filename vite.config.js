@@ -74,7 +74,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['../tests/components/**/*.test.{js,jsx}', '../tests/hooks/**/*.test.{js,jsx}', '../tests/lib/**/*.test.{js,jsx}'],
+    include: ['../tests/components/**/*.test.{js,jsx}', '../tests/hooks/**/*.test.{js,jsx}', '../tests/lib/**/*.test.{js,jsx}', '../tests/cli/**/*.test.{js,jsx}'],
     exclude: ['../tests/frontend/**'],
     setupFiles: ['../tests/setup.js'],
   },

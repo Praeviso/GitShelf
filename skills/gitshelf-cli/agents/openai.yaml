@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitShelf CLI"
+  short_description: "Use the GitShelf CLI to upload and manage content"
+  default_prompt: "Use $gitshelf-cli to operate a GitShelf site with the CLI: configure repo and token, upload PDFs, Markdown files, or ZIP sites, inspect catalog items, edit metadata, delete content, and check failures."

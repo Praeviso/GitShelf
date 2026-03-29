@@ -9,12 +9,6 @@ const FAILURES_PATH = 'docs/failures.json';
 const MANIFEST_PATH = 'docs/manifest.json';
 const CATALOG_DEFAULT_PATH = 'docs/catalog.json';
 const CATALOG_METADATA_PATH = 'docs/catalog-metadata.json';
-const CATALOG_CANDIDATE_PATHS = [
-  CATALOG_DEFAULT_PATH,
-  'docs/catalog.full.json',
-  'docs/manifest.full.json',
-  'docs/catalog.admin.json',
-];
 const VISIBILITY_VALUES = ['published', 'hidden', 'archived'];
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = ['pdf', 'md', 'zip'];
@@ -105,16 +99,14 @@ export function getDisplayTitle(item) {
 }
 
 function normalizeItemRecord(raw) {
-  const gen = raw && typeof raw.generated === 'object' ? raw.generated : {};
-  const meta = raw && typeof raw.metadata === 'object' ? raw.metadata : {};
-  const m = { ...gen, ...raw, ...meta };
-  const id = String(m.id || m.book_id || '').trim();
+  const m = raw && typeof raw === 'object' ? raw : {};
+  const id = String(m.id || '').trim();
   if (!id) return null;
   return {
     id,
     type: String(m.type || 'book').trim(),
-    title: String(m.title || m.generated_title || id).trim(),
-    display_title: String(m.display_title || m.displayTitle || '').trim(),
+    title: String(m.title || id).trim(),
+    display_title: String(m.display_title || '').trim(),
     author: String(m.author || '').trim(),
     summary: String(m.summary || '').trim(),
     tags: normalizeTags(m.tags),
@@ -124,16 +116,14 @@ function normalizeItemRecord(raw) {
     chapters_count: normalizeNullableNumber(m.chapters_count),
     word_count: normalizeNullableNumber(m.word_count),
     created_at: String(m.created_at || '').trim() || null,
-    updated_at: String(m.updated_at || m.converted_at || m.metadata_updated_at || m.created_at || '').trim() || null,
-    source: String(m.source || m.source_pdf || m.source_file || '').trim() || null,
+    updated_at: String(m.updated_at || m.created_at || '').trim() || null,
+    source: String(m.source || '').trim() || null,
     entry: String(m.entry || '').trim() || null,
   };
 }
 
 function normalizeCatalogPayload(payload) {
-  const records = Array.isArray(payload?.items) ? payload.items
-    : Array.isArray(payload?.books) ? payload.books
-    : Array.isArray(payload?.entries) ? payload.entries : [];
+  const records = Array.isArray(payload?.items) ? payload.items : [];
   return records.map(normalizeItemRecord).filter(Boolean);
 }
 
@@ -227,9 +217,12 @@ let catalogSourcePath = CATALOG_DEFAULT_PATH;
 
 export async function fetchCatalog(repo) {
   try { await readRepositoryJson(repo, CATALOG_METADATA_PATH); } catch (e) { if (!isNotFoundError(e)) throw e; }
-  for (const path of CATALOG_CANDIDATE_PATHS) {
-    try { const f = await readRepositoryJson(repo, path); catalogSourcePath = f.path; return { items: normalizeCatalogPayload(f.data), sourcePath: f.path, notice: '' }; }
-    catch (e) { if (!isNotFoundError(e)) throw e; }
+  try {
+    const f = await readRepositoryJson(repo, CATALOG_DEFAULT_PATH);
+    catalogSourcePath = f.path;
+    return { items: normalizeCatalogPayload(f.data), sourcePath: f.path, notice: '' };
+  } catch (e) {
+    if (!isNotFoundError(e)) throw e;
   }
   try { const f = await readRepositoryJson(repo, MANIFEST_PATH); return { items: normalizeCatalogPayload(f.data).map(b => ({ ...b, visibility: 'published' })), sourcePath: CATALOG_DEFAULT_PATH, notice: 'Full catalog not found. Loaded manifest as fallback.' }; }
   catch (e) { if (!isNotFoundError(e)) throw e; return { items: [], sourcePath: CATALOG_DEFAULT_PATH, notice: 'Catalog files not found. First metadata save will create them.' }; }
@@ -249,9 +242,6 @@ export async function persistCatalog(repo, nextItems, message, extraOps) {
 }
 
 export function deepCloneItems(items) { return items.map(b => ({ ...b, tags: (b.tags || []).slice() })); }
-
-// Legacy alias
-export const deepCloneBooks = deepCloneItems;
 
 export async function uploadContent(file, repo, onProgress) {
   if (!repo.owner || !repo.name) throw new Error('Repository not configured.');
@@ -280,12 +270,9 @@ export async function uploadContent(file, repo, onProgress) {
   onProgress('done', 'Upload complete.');
 }
 
-// Legacy alias
-export const uploadPdf = uploadContent;
-
 export async function triggerReconvert(item, repo, { clearCache = false } = {}) {
   if (!repo.owner || !repo.name) throw new Error('Repository not configured.');
-  const filename = String(item.source || item.source_pdf || '').trim();
+  const filename = String(item.source || '').trim();
   if (!filename) throw new Error('Missing source file metadata.');
   if (clearCache) {
     const cacheOps = await getCacheDeleteOps(repo, item.id);
@@ -298,24 +285,32 @@ export async function triggerReconvert(item, repo, { clearCache = false } = {}) 
   });
 }
 
-async function listRepoDir(repo, path) {
-  try { const data = await githubApi(`/repos/${repo.owner}/${repo.name}/contents/${path}`); return Array.isArray(data) ? data : []; }
-  catch { return []; }
+async function listRepoTree(repo, path) {
+  try {
+    const data = await githubApi(`/repos/${repo.owner}/${repo.name}/contents/${path}`);
+    if (!Array.isArray(data)) return data?.type === 'file' ? [data] : [];
+
+    const nested = await Promise.all(data.map(async (entry) => {
+      if (entry.type === 'dir') return listRepoTree(repo, entry.path);
+      return entry.type === 'file' ? [entry] : [];
+    }));
+    return nested.flat();
+  } catch {
+    return [];
+  }
 }
 
 async function getCacheDeleteOps(repo, itemId) {
   let md5;
-  // Try meta.json first, then legacy conversion.json
-  for (const metaFile of ['meta.json', 'conversion.json']) {
-    try {
-      const f = await readRepositoryJson(repo, `docs/books/${itemId}/${metaFile}`);
-      md5 = f.data?.pdf_md5;
-      if (md5) break;
-    } catch { /* not found */ }
+  try {
+    const f = await readRepositoryJson(repo, `docs/books/${itemId}/meta.json`);
+    md5 = f.data?.pdf_md5;
+  } catch { /* not found */ }
+  if (!md5) {
+    return [];
   }
-  if (!md5) return [];
 
-  const cacheFiles = await listRepoDir(repo, 'cache/markdown');
+  const cacheFiles = await listRepoTree(repo, 'cache/markdown');
   return cacheFiles
     .filter(f => f.name.startsWith(md5))
     .map(f => ({ path: f.path, delete: true }));
@@ -324,16 +319,13 @@ async function getCacheDeleteOps(repo, itemId) {
 export async function deleteItemPermanently(item, repo, catalog) {
   const type = item.type || 'book';
   const dirBase = CONTENT_TYPE_DIRS[type] || 'docs/books';
-  const files = await listRepoDir(repo, `${dirBase}/${item.id}`);
+  const files = await listRepoTree(repo, `${dirBase}/${item.id}`);
   const cacheOps = type === 'book' ? await getCacheDeleteOps(repo, item.id) : [];
   const next = deepCloneItems(catalog).filter(b => b.id !== item.id);
   const deleteOps = [...files.map(f => ({ path: f.path, delete: true })), ...cacheOps];
   await persistCatalog(repo, next, `chore(admin): permanently delete ${type} ${item.id}`, deleteOps);
   return next;
 }
-
-// Legacy alias
-export const deleteBookPermanently = deleteItemPermanently;
 
 export async function saveSplitLevelConfig(level, repo) {
   if (!repo.owner || !repo.name) throw new Error('Repository not configured.');

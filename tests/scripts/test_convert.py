@@ -38,6 +38,17 @@ class ConvertDispatchResolutionTest(unittest.TestCase):
             self.assertEqual(resolved, input_dir / "book.pdf")
 
 
+class ContentIdGenerationTest(unittest.TestCase):
+    def test_generate_book_id_preserves_unicode_letters(self) -> None:
+        item_id = convert.generate_book_id(Path("测试 文档.pdf"))
+        self.assertEqual(item_id, "测试-文档")
+
+    def test_generate_book_id_falls_back_when_slug_is_empty(self) -> None:
+        item_id = convert.generate_book_id(Path("!!!.pdf"))
+        self.assertTrue(item_id.startswith("item-"))
+        self.assertGreater(len(item_id), 5)
+
+
 class FailureTrackingTest(unittest.TestCase):
     def test_write_failures_creates_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

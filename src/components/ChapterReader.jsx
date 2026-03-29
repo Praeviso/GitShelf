@@ -152,15 +152,15 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded }) {
     const idx = chapters.findIndex((c) => c.slug === slug && !c.anchor);
     if (idx === -1) return;
 
-    const onKeyDown = (e) => {
-      const tag = e.target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
-      if (e.key === 'ArrowLeft' && idx > 0) {
-        location.hash = `#/books/${bookId}/${chapters[idx - 1].slug}`;
-      } else if (e.key === 'ArrowRight' && idx < chapters.length - 1) {
-        location.hash = `#/books/${bookId}/${chapters[idx + 1].slug}`;
-      }
-    };
+      const onKeyDown = (e) => {
+        const tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+        if (e.key === 'ArrowLeft' && idx > 0) {
+          location.hash = `#/books/${encodeURIComponent(bookId)}/${encodeURIComponent(chapters[idx - 1].slug)}`;
+        } else if (e.key === 'ArrowRight' && idx < chapters.length - 1) {
+          location.hash = `#/books/${encodeURIComponent(bookId)}/${encodeURIComponent(chapters[idx + 1].slug)}`;
+        }
+      };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [slug, tocData, bookId]);

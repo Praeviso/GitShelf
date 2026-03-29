@@ -11,6 +11,28 @@ import {
   numberFormatter, MAX_FILE_SIZE, VISIBILITY_VALUES, toIsoNow,
 } from '../lib/github-api';
 
+const CONTENT_TYPE_LABELS = {
+  book: 'Book',
+  doc: 'Document',
+  site: 'Site',
+};
+
+function getItemType(item) {
+  return item?.type || 'book';
+}
+
+function getContentHref(item) {
+  const itemId = encodeURIComponent(item.id);
+  const type = getItemType(item);
+  if (type === 'doc') return `#/articles/${itemId}`;
+  if (type === 'site') return `#/sites/${itemId}`;
+  return `#/books/${itemId}`;
+}
+
+function getContentTypeLabel(item) {
+  return CONTENT_TYPE_LABELS[getItemType(item)] || 'Content';
+}
+
 // --- Auth View ---
 function AuthView({ onAuthenticated }) {
   const [token, setToken] = useState('');
@@ -43,7 +65,7 @@ function AuthView({ onAuthenticated }) {
         </div>
       </form>
       {error && <p class="admin-error">{error}</p>}
-      <p><a class="admin-text-link" href="https://github.com/settings/tokens/new?scopes=repo&description=PDF2Book%20Admin" target="_blank" rel="noopener noreferrer">Create a new token on GitHub</a></p>
+      <p><a class="admin-text-link" href="https://github.com/settings/tokens/new?scopes=repo&description=GitShelf%20Admin" target="_blank" rel="noopener noreferrer">Create a new token on GitHub</a></p>
     </div>
   );
 }
@@ -64,7 +86,7 @@ function UploadSection({ repo, disabled }) {
     try {
       await apiUploadContent(file, repo, (stage, msg) => setProgress({ stage, msg }));
       setProgress({ stage: 'done', msg: 'uploaded', filename: file.name });
-      showToast('PDF uploaded successfully', 'success');
+      showToast('Content uploaded successfully', 'success');
     } catch (err) { setError(err.message); setProgress({ stage: 'error', msg: 'Upload failed.' }); }
   };
 
@@ -73,7 +95,7 @@ function UploadSection({ repo, disabled }) {
 
   return (
     <section class="admin-upload">
-      <h2>Upload PDF</h2>
+      <h2>Upload Content</h2>
       {disabled ? (
         <div class="upload-dropzone upload-dropzone--disabled">
           <svg class="upload-dropzone-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -86,7 +108,7 @@ function UploadSection({ repo, disabled }) {
           class={`upload-dropzone${dragOver ? ' upload-dropzone--dragover' : ''}`}
           role="button"
           tabIndex="0"
-          aria-label="Upload PDF file"
+          aria-label="Upload content file"
           onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.pdf,.md,.zip'; i.onchange = () => handleFile(i.files[0]); i.click(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); }}}
           onDragEnter={(e) => { e.preventDefault(); dragCounter++; setDragOver(true); }}
@@ -97,7 +119,7 @@ function UploadSection({ repo, disabled }) {
           <svg class="upload-dropzone-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M32 32l-8-8-8 8M24 24v18M40.78 37.09A10 10 0 0 0 36 18h-2.52A16 16 0 1 0 8 32.29" />
           </svg>
-          <div class="upload-dropzone-text">Drop PDF here or click to browse</div>
+          <div class="upload-dropzone-text">Drop PDF, Markdown, or ZIP here or click to browse</div>
           <div class="upload-dropzone-hint">Maximum 100 MB</div>
         </div>
       )}
@@ -337,7 +359,7 @@ function CatalogSection({ repo }) {
     setLoading(true); setError('');
     try {
       const result = await fetchCatalog(repo);
-      setCatalog(result.books); setNotice(result.notice);
+      setCatalog(result.items); setNotice(result.notice);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   }, [repo, repoReady]);
@@ -348,7 +370,7 @@ function CatalogSection({ repo }) {
     if (visFilter !== 'all' && normalizeVisibility(b.visibility) !== visFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      return [b.id, b.title, b.display_title, b.author, b.summary, b.source, ...(b.tags || [])].some((f) => String(f || '').toLowerCase().includes(q));
+      return [b.id, b.title, b.display_title, b.author, b.summary, b.source, b.entry, ...(b.tags || [])].some((f) => String(f || '').toLowerCase().includes(q));
     }
     return true;
   }).sort((a, b) => {
@@ -363,26 +385,26 @@ function CatalogSection({ repo }) {
   const toggleAll = () => setSelected((s) => s.size === filtered.length ? new Set() : new Set(filtered.map((b) => b.id)));
 
   const bulkVisibility = async (vis) => {
-    if (selected.size === 0) { setBulkError('Select at least one book.'); return; }
+    if (selected.size === 0) { setBulkError('Select at least one item.'); return; }
     setBulkError('');
     const next = deepCloneItems(catalog).map((b) => selected.has(b.id) ? { ...b, visibility: vis, updated_at: toIsoNow() } : b);
     try {
-      await persistCatalog(repo, next, `chore(admin): bulk set visibility=${vis} (${selected.size} books)`);
+      await persistCatalog(repo, next, `chore(admin): bulk set visibility=${vis} (${selected.size} items)`);
       setCatalog(next); setSelected(new Set());
-      showToast(`${selected.size} book${selected.size > 1 ? 's' : ''} set to ${vis}`, 'success');
+      showToast(`${selected.size} item${selected.size > 1 ? 's' : ''} set to ${vis}`, 'success');
     } catch (err) { setBulkError(err.message); }
   };
 
-  const handleSaveBook = async (updated) => {
+  const handleSaveItem = async (updated) => {
     const next = deepCloneItems(catalog).map((b) => b.id === updated.id ? updated : b);
     await persistCatalog(repo, next, `chore(admin): update catalog metadata for ${updated.id}`);
     setCatalog(next); setEditingId(null);
     showToast('Metadata saved', 'success');
   };
 
-  const handleReconvert = async (book) => {
-    await triggerReconvert(book, repo);
-    showToast('Re-conversion triggered', 'info');
+  const handleReprocess = async (item) => {
+    await triggerReconvert(item, repo);
+    showToast('Re-processing triggered', 'info');
   };
 
   const confirmDelete = async () => {
@@ -393,29 +415,29 @@ function CatalogSection({ repo }) {
       setCatalog(next); setSelected((s) => { const n = new Set(s); n.delete(deleteTarget.id); return n; });
       setEditingId(null);
       setDeleteTarget(null);
-      showToast('Book deleted permanently', 'success');
+      showToast(`${getContentTypeLabel(deleteTarget)} deleted permanently`, 'success');
     } catch (err) { showToast(err.message, 'error'); }
     finally { setDeleting(false); }
   };
 
-  const quickVisibilityChange = async (book) => {
+  const quickVisibilityChange = async (item) => {
     const cycle = { published: 'hidden', hidden: 'archived', archived: 'published' };
-    const nextVis = cycle[normalizeVisibility(book.visibility)];
-    const next = deepCloneItems(catalog).map((b) => b.id === book.id ? { ...b, visibility: nextVis, updated_at: toIsoNow() } : b);
+    const nextVis = cycle[normalizeVisibility(item.visibility)];
+    const next = deepCloneItems(catalog).map((b) => b.id === item.id ? { ...b, visibility: nextVis, updated_at: toIsoNow() } : b);
     try {
-      await persistCatalog(repo, next, `chore(admin): set visibility=${nextVis} for ${book.id}`);
+      await persistCatalog(repo, next, `chore(admin): set visibility=${nextVis} for ${item.id}`);
       setCatalog(next);
-      showToast(`"${getDisplayTitle(book)}" set to ${nextVis}`, 'success');
+      showToast(`"${getDisplayTitle(item)}" set to ${nextVis}`, 'success');
     } catch (err) { showToast(err.message, 'error'); }
   };
 
   const counts = { total: catalog.length, published: 0, hidden: 0, archived: 0 };
   catalog.forEach((b) => { const v = normalizeVisibility(b.visibility); if (counts[v] != null) counts[v]++; });
 
-  if (!repoReady) return <section class="admin-books"><h2>Book Catalog</h2><div class="admin-empty-state">Configure repository to view catalog.</div></section>;
+  if (!repoReady) return <section class="admin-books"><h2>Content Catalog</h2><div class="admin-empty-state">Configure repository to view catalog.</div></section>;
   if (loading) return (
     <section class="admin-books">
-      <h2>Book Catalog</h2>
+      <h2>Content Catalog</h2>
       <div class="admin-skeleton-table">
         {Array.from({ length: 5 }, (_, i) => (
           <div key={i} class="admin-skeleton-row">
@@ -430,11 +452,11 @@ function CatalogSection({ repo }) {
       </div>
     </section>
   );
-  if (error) return <section class="admin-books"><h2>Book Catalog</h2><p class="admin-error">{error}</p></section>;
+  if (error) return <section class="admin-books"><h2>Content Catalog</h2><p class="admin-error">{error}</p></section>;
 
   return (
     <section class="admin-books">
-      <h2>Book Catalog</h2>
+      <h2>Content Catalog</h2>
       {notice && <div class="admin-repo-banner">{notice}</div>}
 
       <div class="admin-summary-pills" role="status">
@@ -457,7 +479,7 @@ function CatalogSection({ repo }) {
       </div>
 
       <div class="admin-catalog-toolbar">
-        <input type="search" class="admin-text-input" placeholder="Search…" value={search} onInput={(e) => setSearch(e.target.value)} aria-label="Search books" />
+        <input type="search" class="admin-text-input" placeholder="Search…" value={search} onInput={(e) => setSearch(e.target.value)} aria-label="Search content" />
         <select class="admin-select" value={visFilter} onChange={(e) => setVisFilter(e.target.value)} aria-label="Filter by visibility">
           <option value="all">All</option>
           {VISIBILITY_VALUES.map((v) => <option key={v} value={v}>{v}</option>)}
@@ -465,7 +487,7 @@ function CatalogSection({ repo }) {
         <select class="admin-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort order">
           <option value="public_order">Featured + Manual Order</option>
           <option value="updated_desc">Recently Updated</option>
-          <option value="created_desc">Recently Converted</option>
+          <option value="created_desc">Recently Created</option>
           <option value="title_asc">Title A-Z</option>
           <option value="words_desc">Word Count</option>
         </select>
@@ -478,7 +500,7 @@ function CatalogSection({ repo }) {
       </div>
 
       {(search || visFilter !== 'all') && (
-        <p class="admin-result-count">Showing {filtered.length} of {catalog.length} book{catalog.length !== 1 ? 's' : ''}</p>
+        <p class="admin-result-count">Showing {filtered.length} of {catalog.length} item{catalog.length !== 1 ? 's' : ''}</p>
       )}
 
       {selected.size > 0 && (
@@ -499,14 +521,14 @@ function CatalogSection({ repo }) {
               <svg class="admin-empty-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M8 6h10a4 4 0 0 1 4 4v28a3 3 0 0 0-3-3H8V6zM40 6H30a4 4 0 0 0-4 4v28a3 3 0 0 1 3-3h11V6z" />
               </svg>
-              <p class="admin-empty-text">No books yet. Upload a PDF to get started.</p>
+              <p class="admin-empty-text">No content yet. Upload a PDF, Markdown file, or ZIP to get started.</p>
             </>
           ) : (
             <>
               <svg class="admin-empty-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="20" cy="20" r="14" /><path d="M38 38l-8-8" />
               </svg>
-              <p class="admin-empty-text">No books match the current filters.</p>
+              <p class="admin-empty-text">No content matches the current filters.</p>
             </>
           )}
         </div>
@@ -517,58 +539,59 @@ function CatalogSection({ repo }) {
             <table class="admin-table admin-catalog-table">
               <thead>
                 <tr>
-                  <th style={{ width: '40px' }}><input type="checkbox" class="admin-checkbox" checked={selected.size === filtered.length && filtered.length > 0} indeterminate={selected.size > 0 && selected.size < filtered.length} onChange={toggleAll} aria-label="Select all books" /></th>
+                  <th style={{ width: '40px' }}><input type="checkbox" class="admin-checkbox" checked={selected.size === filtered.length && filtered.length > 0} indeterminate={selected.size > 0 && selected.size < filtered.length} onChange={toggleAll} aria-label="Select all items" /></th>
                   <th>Title</th><th style={{ width: '96px' }}>Lifecycle</th><th style={{ width: '240px' }}>Provenance</th><th style={{ width: '120px' }}>Stats</th><th style={{ width: '112px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((book) => (
+                {filtered.map((item) => (
                   <>
-                    <tr key={book.id}>
-                      <td><input type="checkbox" class="admin-checkbox" checked={selected.has(book.id)} onChange={() => toggleSelect(book.id)} aria-label={`Select ${getDisplayTitle(book)}`} /></td>
+                    <tr key={item.id}>
+                      <td><input type="checkbox" class="admin-checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} aria-label={`Select ${getDisplayTitle(item)}`} /></td>
                       <td>
                         <div class="admin-book-title-wrap">
-                          <a class="admin-book-title-link" href={`#/${encodeURIComponent(book.id)}`}>{getDisplayTitle(book)}</a>
-                          {book.author && <span class="admin-book-subtle">{book.author}</span>}
-                          <span class="admin-book-subtle">id: {book.id}</span>
-                          {book.tags && book.tags.length > 0 && (
+                          <a class="admin-book-title-link" href={getContentHref(item)}>{getDisplayTitle(item)}</a>
+                          <span class="admin-book-subtle">{getContentTypeLabel(item)}</span>
+                          {item.author && <span class="admin-book-subtle">{item.author}</span>}
+                          <span class="admin-book-subtle">id: {item.id}</span>
+                          {item.tags && item.tags.length > 0 && (
                             <div class="admin-tag-list">
-                              {book.tags.slice(0, 4).map((t) => <span key={t} class="admin-tag">{t}</span>)}
-                              {book.tags.length > 4 && <span class="admin-tag">+{book.tags.length - 4}</span>}
+                              {item.tags.slice(0, 4).map((t) => <span key={t} class="admin-tag">{t}</span>)}
+                              {item.tags.length > 4 && <span class="admin-tag">+{item.tags.length - 4}</span>}
                             </div>
                           )}
                         </div>
                       </td>
                       <td>
-                        <button class="admin-state-pill-btn" onClick={() => quickVisibilityChange(book)} title={`Click to cycle visibility (currently ${normalizeVisibility(book.visibility)})`} aria-label={`Change visibility for ${getDisplayTitle(book)}, currently ${normalizeVisibility(book.visibility)}`}>
-                          <span class={`admin-state-pill admin-state-pill--${normalizeVisibility(book.visibility)}`}>{normalizeVisibility(book.visibility)}</span>
+                        <button class="admin-state-pill-btn" onClick={() => quickVisibilityChange(item)} title={`Click to cycle visibility (currently ${normalizeVisibility(item.visibility)})`} aria-label={`Change visibility for ${getDisplayTitle(item)}, currently ${normalizeVisibility(item.visibility)}`}>
+                          <span class={`admin-state-pill admin-state-pill--${normalizeVisibility(item.visibility)}`}>{normalizeVisibility(item.visibility)}</span>
                         </button>
                       </td>
                       <td>
                         <div class="admin-provenance">
-                          <span class="admin-mono">{book.source || 'source not set'}</span>
-                          <span class="admin-book-subtle">Converted: {book.converted_at ? dateTimeFormatter.format(new Date(book.converted_at)) : 'N/A'}</span>
+                          <span class="admin-mono">{item.source || 'source not set'}</span>
+                          {item.entry && <span class="admin-book-subtle">{item.entry}</span>}
+                          <span class="admin-book-subtle">Updated: {item.updated_at ? dateTimeFormatter.format(new Date(item.updated_at)) : 'N/A'}</span>
                         </div>
                       </td>
                       <td>
                         <div class="admin-meta-lines">
-                          <span>Chapters: {book.chapters_count != null ? numberFormatter.format(book.chapters_count) : 'N/A'}</span>
-                          <span>Words: {book.word_count != null ? numberFormatter.format(book.word_count) : 'N/A'}</span>
+                          <span>Chapters: {item.chapters_count != null ? numberFormatter.format(item.chapters_count) : 'N/A'}</span>
+                          <span>Words: {item.word_count != null ? numberFormatter.format(item.word_count) : 'N/A'}</span>
                         </div>
                       </td>
                       <td>
                         <div class="admin-actions">
-                          <button class="btn btn-primary btn-sm" onClick={() => setEditingId(editingId === book.id ? null : book.id)}>{editingId === book.id ? 'Close' : 'Edit'}</button>
+                          <button class="btn btn-primary btn-sm" onClick={() => setEditingId(editingId === item.id ? null : item.id)}>{editingId === item.id ? 'Close' : 'Edit'}</button>
                           <ActionMenu items={[
-                            { label: 'Re-convert', onClick: () => handleReconvert(book) },
-                            { separator: true },
-                            { label: 'Force Delete', danger: true, onClick: () => setDeleteTarget(book) },
+                            ...(getItemType(item) === 'book' ? [{ label: 'Re-process', onClick: () => handleReprocess(item) }, { separator: true }] : []),
+                            { label: 'Force Delete', danger: true, onClick: () => setDeleteTarget(item) },
                           ]} />
                         </div>
                       </td>
                     </tr>
-                    {editingId === book.id && (
-                      <tr class="admin-editor-row"><td colspan="6"><BookEditor book={book} onSave={handleSaveBook} onCancel={() => setEditingId(null)} /></td></tr>
+                    {editingId === item.id && (
+                      <tr class="admin-editor-row"><td colspan="6"><BookEditor book={item} onSave={handleSaveItem} onCancel={() => setEditingId(null)} /></td></tr>
                     )}
                   </>
                 ))}
@@ -578,33 +601,34 @@ function CatalogSection({ repo }) {
 
           {/* Mobile cards */}
           <div class="admin-catalog-cards">
-            {filtered.map((book) => (
-              <div key={book.id} class="admin-catalog-card">
+            {filtered.map((item) => (
+              <div key={item.id} class="admin-catalog-card">
                 <div class="admin-catalog-card-header">
-                  <input type="checkbox" class="admin-checkbox" checked={selected.has(book.id)} onChange={() => toggleSelect(book.id)} aria-label={`Select ${getDisplayTitle(book)}`} />
-                  <a class="admin-book-title-link" href={`#/${encodeURIComponent(book.id)}`}>{getDisplayTitle(book)}</a>
-                  <button class="admin-state-pill-btn" onClick={() => quickVisibilityChange(book)} title={`Click to cycle visibility`} aria-label={`Change visibility for ${getDisplayTitle(book)}, currently ${normalizeVisibility(book.visibility)}`}>
-                    <span class={`admin-state-pill admin-state-pill--${normalizeVisibility(book.visibility)}`}>{normalizeVisibility(book.visibility)}</span>
+                  <input type="checkbox" class="admin-checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} aria-label={`Select ${getDisplayTitle(item)}`} />
+                  <a class="admin-book-title-link" href={getContentHref(item)}>{getDisplayTitle(item)}</a>
+                  <button class="admin-state-pill-btn" onClick={() => quickVisibilityChange(item)} title={`Click to cycle visibility`} aria-label={`Change visibility for ${getDisplayTitle(item)}, currently ${normalizeVisibility(item.visibility)}`}>
+                    <span class={`admin-state-pill admin-state-pill--${normalizeVisibility(item.visibility)}`}>{normalizeVisibility(item.visibility)}</span>
                   </button>
                 </div>
                 <div class="admin-catalog-card-meta">
-                  {book.author && <span>{book.author}</span>}
-                  {book.source && <span class="admin-mono">{book.source}</span>}
+                  <span>{getContentTypeLabel(item)}</span>
+                  {item.author && <span>{item.author}</span>}
+                  {item.source && <span class="admin-mono">{item.source}</span>}
+                  {item.entry && <span class="admin-book-subtle">{item.entry}</span>}
                   <span class="admin-book-subtle">
-                    {[book.chapters_count != null && `${numberFormatter.format(book.chapters_count)} ch`, book.word_count != null && `${numberFormatter.format(book.word_count)} words`].filter(Boolean).join(' \u00b7 ')}
+                    {[item.chapters_count != null && `${numberFormatter.format(item.chapters_count)} ch`, item.word_count != null && `${numberFormatter.format(item.word_count)} words`].filter(Boolean).join(' \u00b7 ')}
                   </span>
-                  {book.converted_at && <span class="admin-book-subtle">Converted: {dateFormatter.format(new Date(book.converted_at))}</span>}
+                  {item.updated_at && <span class="admin-book-subtle">Updated: {dateFormatter.format(new Date(item.updated_at))}</span>}
                 </div>
                 <div class="admin-catalog-card-actions">
-                  <button class="btn btn-primary btn-sm" onClick={() => setEditingId(editingId === book.id ? null : book.id)}>{editingId === book.id ? 'Close' : 'Edit'}</button>
+                  <button class="btn btn-primary btn-sm" onClick={() => setEditingId(editingId === item.id ? null : item.id)}>{editingId === item.id ? 'Close' : 'Edit'}</button>
                   <ActionMenu items={[
-                    { label: 'Re-convert', onClick: () => handleReconvert(book) },
-                    { separator: true },
-                    { label: 'Force Delete', danger: true, onClick: () => setDeleteTarget(book) },
+                    ...(getItemType(item) === 'book' ? [{ label: 'Re-process', onClick: () => handleReprocess(item) }, { separator: true }] : []),
+                    { label: 'Force Delete', danger: true, onClick: () => setDeleteTarget(item) },
                   ]} />
                 </div>
-                {editingId === book.id && (
-                  <div class="admin-catalog-card-editor"><BookEditor book={book} onSave={handleSaveBook} onCancel={() => setEditingId(null)} /></div>
+                {editingId === item.id && (
+                  <div class="admin-catalog-card-editor"><BookEditor book={item} onSave={handleSaveItem} onCancel={() => setEditingId(null)} /></div>
                 )}
               </div>
             ))}
@@ -623,7 +647,7 @@ function CatalogSection({ repo }) {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       >
-        <p>This will permanently delete <strong>{deleteTarget ? getDisplayTitle(deleteTarget) : ''}</strong> and all its chapters. This action cannot be undone.</p>
+        <p>This will permanently delete <strong>{deleteTarget ? getDisplayTitle(deleteTarget) : ''}</strong> and all of its generated files. This action cannot be undone.</p>
       </ConfirmDialog>
     </section>
   );
@@ -737,8 +761,18 @@ function SettingsSection({ repo, onRepoChange }) {
 export default function AdminPanel() {
   const [authenticated, setAuthenticated] = useState(Boolean(getPat()));
   const [repo, setRepo] = useState(detectRepo);
+  const repoReady = Boolean(repo.owner && repo.name);
+  const [tab, setTab] = useState(repoReady ? 'content' : 'settings');
+  const previousRepoReady = useRef(repoReady);
 
-  useEffect(() => { document.title = 'Admin \u00b7 PDF2Book'; }, []);
+  useEffect(() => { document.title = 'Admin \u00b7 GitShelf'; }, []);
+
+  useEffect(() => {
+    if (repoReady && !previousRepoReady.current) {
+      setTab('content');
+    }
+    previousRepoReady.current = repoReady;
+  }, [repoReady]);
 
   if (!authenticated) {
     return (
@@ -749,20 +783,9 @@ export default function AdminPanel() {
     );
   }
 
-  const repoReady = Boolean(repo.owner && repo.name);
-  const [tab, setTab] = useState(repoReady ? 'books' : 'settings');
-
-  // Auto-switch to books tab once repo is configured
-  useEffect(() => {
-    if (repoReady && tab === 'settings') {
-      const wasUnconfigured = !repo._wasReady;
-      if (wasUnconfigured) setTab('books');
-    }
-  }, [repoReady]);
-
   const handleRepoChange = (newRepo) => {
     setRepo(newRepo);
-    if (newRepo.owner && newRepo.name) setTab('books');
+    if (newRepo.owner && newRepo.name) setTab('content');
   };
 
   return (
@@ -773,11 +796,11 @@ export default function AdminPanel() {
       )}
       <nav class="admin-tabs" role="tablist">
         <button
-          class={`admin-tab${tab === 'books' ? ' admin-tab--active' : ''}`}
+          class={`admin-tab${tab === 'content' ? ' admin-tab--active' : ''}`}
           role="tab"
-          aria-selected={tab === 'books'}
-          onClick={() => setTab('books')}
-        >Books</button>
+          aria-selected={tab === 'content'}
+          onClick={() => setTab('content')}
+        >Content</button>
         <button
           class={`admin-tab${tab === 'settings' ? ' admin-tab--active' : ''}`}
           role="tab"
@@ -786,7 +809,7 @@ export default function AdminPanel() {
         >Settings</button>
       </nav>
 
-      {tab === 'books' && (
+      {tab === 'content' && (
         <>
           {!repoReady && (
             <div class="admin-repo-banner admin-repo-banner--warning">

@@ -29,7 +29,14 @@ export function flattenChapters(items) {
 
 export function getItemDisplayTitle(item) {
   if (!item) return 'Untitled';
-  return String(item.title || item.display_title || item.id || 'Untitled');
+  const raw = String(item.title || item.display_title || item.id || 'Untitled');
+  // Humanize filename-like titles (contain underscores or look like slugs)
+  if (raw.includes('_') || /^[a-z0-9]+(-[a-z0-9]+)+$/.test(raw)) {
+    return raw
+      .replace(/[_-]/g, ' ')
+      .replace(/\b[a-z]/g, (c) => c.toUpperCase());
+  }
+  return raw;
 }
 
 export function formatWordCount(count) {
@@ -44,12 +51,26 @@ export function getItemType(item) {
 // Route helpers for each content type
 export function getItemHref(item) {
   const type = getItemType(item);
-  if (type === 'book') return `#/books/${item.id}`;
-  if (type === 'doc') return `#/articles/${item.id}`;
+  const encodedId = encodeURIComponent(item.id);
+  if (type === 'book') return `#/books/${encodedId}`;
+  if (type === 'doc') return `#/articles/${encodedId}`;
   if (type === 'site') return `./${item.entry}`;
-  return `#/books/${item.id}`;
+  return `#/books/${encodedId}`;
 }
 
 export function getItemTarget(item) {
   return getItemType(item) === 'site' ? '_blank' : undefined;
+}
+
+export function formatRelativeDate(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffDays < 1) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 30) return `${diffDays}d ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+  return `${Math.floor(diffDays / 365)}y ago`;
 }

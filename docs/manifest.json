@@ -1,34 +1,45 @@
 {
-  "books": [
+  "items": [
+    {
+      "id": "deep-research-report",
+      "type": "doc",
+      "title": "deep_research_report",
+      "author": null,
+      "summary": null,
+      "tags": [],
+      "featured": false,
+      "source": "deep_research_report.md",
+      "created_at": "2026-03-29T08:41:27Z",
+      "updated_at": "2026-03-29T08:41:27Z",
+      "word_count": 3067
+    },
     {
       "id": "designing-data-intensive-applications-2nd-edition",
+      "type": "book",
       "title": "Designing Data-Intensive Applications, 2nd Edition",
       "author": null,
       "summary": null,
       "tags": [],
       "featured": false,
-      "visibility": "published",
-      "manual_order": null,
-      "source_pdf": "Designing Data-Intensive Applications, 2nd Edition.pdf",
-      "chapters_count": 15,
-      "word_count": 250059,
+      "source": "Designing Data-Intensive Applications, 2nd Edition.pdf",
       "created_at": "2026-03-27T09:18:03Z",
-      "converted_at": "2026-03-27T09:18:03Z"
+      "updated_at": "2026-03-27T09:18:03Z",
+      "chapters_count": 15,
+      "word_count": 250059
     },
     {
       "id": "progit",
+      "type": "book",
       "title": "progit",
       "author": null,
       "summary": null,
       "tags": [],
       "featured": false,
-      "visibility": "published",
-      "manual_order": null,
-      "source_pdf": "progit.pdf",
-      "chapters_count": 21,
-      "word_count": 142694,
+      "source": "progit.pdf",
       "created_at": "2026-03-27T07:42:02Z",
-      "converted_at": "2026-03-27T07:42:02Z"
+      "updated_at": "2026-03-27T07:42:02Z",
+      "chapters_count": 21,
+      "word_count": 142694
     }
   ]
 }

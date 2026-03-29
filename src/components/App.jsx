@@ -108,7 +108,7 @@ export function App() {
           />
         )}
         {route.type === 'article' && (
-          <ArticleReader key={route.articleId} articleId={route.articleId} />
+          <ArticleReader key={route.articleId + (route.anchor || '')} articleId={route.articleId} anchor={route.anchor} />
         )}
         {route.type === 'admin' && (
           <Suspense fallback={<div class="admin-container"><p>Loading admin panel...</p></div>}>

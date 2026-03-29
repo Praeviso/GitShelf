@@ -87,7 +87,7 @@ export function HomeView() {
 
   return (
     <section class="home-container view-enter">
-      <h1 class="home-heading">GitShelf</h1>
+      <p class="home-subtitle">Your personal reading shelf</p>
 
       {showTabs && (
         <div class="home-tabs" role="tablist">

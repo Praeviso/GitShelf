@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-PDF2Book is a serverless app that converts PDFs to online books on GitHub Pages. Users upload PDFs through a browser admin panel, GitHub Actions converts them via MinerU API, and the result is a GitBook-style reading site. No backend server — everything runs in GitHub Actions and the browser.
+GitShelf is a serverless content shelf on GitHub Pages. Users upload PDFs, Markdown files, or ZIP archives through the browser admin panel, GitHub Actions processes them into books, documents, or static sites, and the result is a GitHub-hosted reading and publishing site. No backend server — everything runs in GitHub Actions and the browser.
 
 ## Commands
 
@@ -25,50 +25,55 @@ lsof -ti:5173 | xargs kill -9 2>/dev/null; npm run dev
 ```bash
 npm test             # Vitest: components, hooks, lib tests (jsdom)
 npm run test:watch   # Vitest watch mode
-npm run test:frontend  # Node test runner: frontend behavior tests (tests/frontend/)
+npm run test:frontend  # Frontend behavior tests
 python -m unittest discover -s tests/scripts -v  # Python pipeline tests
 ```
 
 ### CI
-The `test.yml` workflow runs both Python and JS tests. `convert.yml` runs the PDF pipeline. `deploy-pages.yml` builds and deploys to GitHub Pages.
+The `test.yml` workflow runs both Python and JS tests. The content-processing workflows handle uploads and conversions. `deploy-pages.yml` builds and deploys to GitHub Pages.
 
 ## Architecture
 
 ### Two codebases, one repo
-- **Frontend (Preact + Vite):** `src/` builds to `docs/assets/`. Hash-based SPA routing. Renders markdown with markdown-it, Shiki (syntax), KaTeX (math).
-- **Pipeline (Python 3.11):** `scripts/` runs in GitHub Actions. Converts PDFs via MinerU API, splits into chapters, generates `toc.json` and `manifest.json`.
+- **Frontend (Preact + Vite):** `src/` builds to `docs/assets/`. Hash-based SPA routing. Renders books, articles, and site cards, with markdown-it, syntax highlighting, and KaTeX support.
+- **Pipeline (Python 3.11):** `scripts/` runs in GitHub Actions. Processes PDFs, Markdown files, and ZIP archives into typed content directories and regenerates catalog data.
 
 ### Data flow
 ```
-Upload PDF (browser → GitHub API → input/)
-  → GitHub Actions runs scripts/convert.py
-  → MinerU API returns markdown (cached by PDF MD5 in cache/markdown/)
-  → Split into chapters by heading level → docs/books/{id}/chapters/*.md
-  → Build manifest.json + catalog.json
+Upload content (browser → GitHub API → input/)
+  → GitHub Actions runs scripts/process.py
+  → .pdf: MinerU API → chapters in docs/books/{id}/
+  → .md: docs/articles/{id}/content.md
+  → .zip: docs/sites/{id}/index.html
+  → Build manifest.json + catalog.json from typed items
   → Commit to git → GitHub Pages deploys
 ```
 
 ### Key data files in docs/
 | File | Purpose | Who writes it |
 |------|---------|---------------|
-| `manifest.json` | Public bookshelf (published books only) | Pipeline (`build_manifest.py`) |
-| `catalog.json` | Full catalog for admin (all visibility states) | Pipeline (`build_manifest.py`) |
-| `catalog-metadata.json` | Curator edits (title, author, tags, etc.) | Admin panel via GitHub API |
-| `books/{id}/toc.json` | Chapter hierarchy with slugs and anchors | Pipeline (`generate_structure.py`) |
-| `books/{id}/conversion.json` | Conversion facts (source PDF, split level, date) | Pipeline (`convert.py`) |
+| `manifest.json` | Public homepage content (`items` array) | Pipeline (`build_manifest.py`) |
+| `catalog.json` | Full admin catalog (`items` array) | Pipeline (`build_manifest.py`) |
+| `catalog-metadata.json` | Curator overrides for typed content items | Admin panel via GitHub API |
+| `books/{id}/meta.json` | Book metadata and source facts | Pipeline (`convert.py`) |
+| `books/{id}/toc.json` | Book chapter hierarchy with slugs and anchors | Pipeline (`generate_structure.py`) |
+| `articles/{id}/meta.json` | Article metadata | Pipeline (`process.py`) |
+| `sites/{id}/.meta.json` | Static site metadata and entry path | Pipeline (`process.py`) |
 
 ### Frontend routing (hash-based)
 | Route | Component |
 |-------|-----------|
-| `#/` | `BookshelfView` — card grid from manifest.json |
-| `#/{bookId}` | `BookOverview` — book landing page |
-| `#/{bookId}/chapters/{slug}` | `ReaderView` — chapter reader |
+| `#/` | `HomeView` — card grid from manifest.json |
+| `#/books/{bookId}` | `BookOverview` — book landing page |
+| `#/books/{bookId}/{slug}` | `ChapterReader` — chapter reader |
+| `#/articles/{articleId}` | `ArticleReader` — single-page markdown reader |
+| `#/sites/{siteId}` | Redirects to `docs/sites/{id}/index.html` in a new tab |
 | `#/admin` | `AdminView` — lazy-loaded admin panel |
 
 ### Vite config notes
 - Root is `src/`, output is `docs/` (with `emptyOutDir: false`)
 - Custom dev middleware serves `docs/manifest.json`, `docs/books/`, etc.
-- Vitest runs tests from `tests/` (components, hooks, lib) but excludes `tests/frontend/` (those use Node test runner)
+- `npm test` runs Vitest unit tests; `npm run test:frontend` uses `vite.frontend.config.js` for integration-style frontend tests
 
 ## Specs (MUST READ before making changes)
 

@@ -44,16 +44,11 @@ def _normalize_visibility(value: object) -> str:
 
 def _read_catalog_metadata(path: Path) -> dict[str, dict]:
     """Read curator-managed metadata keyed by item id.
-
-    Supported forms:
-    - {"items": {"item-id": {...}}}
-    - {"items": [{"id": "item-id", ...}, ...]}
-    - Legacy: {"books": ...} (backward compat during migration)
     """
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            json.dumps({"items": {}}, indent=2, ensure_ascii=False) + "\n",
+            json.dumps({"items": []}, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
         return {}
@@ -66,37 +61,55 @@ def _read_catalog_metadata(path: Path) -> dict[str, dict]:
     if not isinstance(raw, dict):
         raise ValueError(f"Catalog metadata at {path} must be an object")
 
-    # Support both "items" and legacy "books" key
-    items = raw.get("items") or raw.get("books", {})
+    items = raw.get("items", [])
     normalized: dict[str, dict] = {}
 
-    if isinstance(items, dict):
-        iterable = ((item_id, data) for item_id, data in items.items())
-    elif isinstance(items, list):
-        iterable = ((entry.get("id"), entry) for entry in items if isinstance(entry, dict))
-    else:
-        raise ValueError(f"Catalog metadata at {path}: 'items' must be an object or array")
+    if not isinstance(items, list):
+        raise ValueError(f"Catalog metadata at {path}: 'items' must be an array")
 
-    for item_id, data in iterable:
-        if not item_id or not isinstance(data, dict):
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+
+        item_id = str(entry.get("id", "")).strip()
+        item_type = str(entry.get("type", "")).strip().lower()
+        if not item_id or not item_type:
             continue
 
         try:
-            normalized[str(item_id)] = {
-                "display_title": str(data.get("display_title", "")).strip() or None,
-                "author": str(data.get("author", "")).strip() or None,
-                "summary": str(data.get("summary", "")).strip() or None,
-                "tags": _normalize_tags(data.get("tags")),
-                "featured": bool(data.get("featured", False)),
-                "manual_order": _normalize_manual_order(data.get("manual_order")),
-                "visibility": _normalize_visibility(data.get("visibility")),
-                "metadata_updated_at": str(data.get("metadata_updated_at", "")).strip() or None,
-                "source": str(data.get("source") or data.get("source_pdf", "")).strip() or None,
+            key = f"{item_type}:{item_id}"
+            normalized[key] = {
+                "display_title": str(entry.get("display_title", "")).strip() or None,
+                "author": str(entry.get("author", "")).strip() or None,
+                "summary": str(entry.get("summary", "")).strip() or None,
+                "tags": _normalize_tags(entry.get("tags")),
+                "featured": bool(entry.get("featured", False)),
+                "manual_order": _normalize_manual_order(entry.get("manual_order")),
+                "visibility": _normalize_visibility(entry.get("visibility")),
+                "metadata_updated_at": str(entry.get("metadata_updated_at", "")).strip() or None,
+                "source": str(entry.get("source", "")).strip() or None,
             }
         except ValueError as exc:
             raise ValueError(f"Invalid catalog metadata for {item_id}: {exc}") from exc
 
     return normalized
+
+
+def _lookup_metadata(metadata_by_id: dict[str, dict], item_type: str, item_id: str) -> dict:
+    return metadata_by_id.get(f"{item_type}:{item_id}", {})
+
+
+def _assert_unique_catalog_ids(entries: list[dict]) -> None:
+    seen: dict[str, str] = {}
+    for entry in entries:
+        item_id = str(entry.get("id", ""))
+        item_type = str(entry.get("type", ""))
+        previous = seen.get(item_id)
+        if previous and previous != item_type:
+            raise ValueError(
+                f"Duplicate content id '{item_id}' exists for both '{previous}' and '{item_type}'."
+            )
+        seen[item_id] = item_type
 
 
 def _read_meta_json(path: Path) -> dict:
@@ -165,13 +178,10 @@ def _build_book_entry(book_dir: Path) -> dict:
         book_dir.stat().st_mtime, tz=timezone.utc
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Read meta.json (new) or conversion.json (legacy)
     meta = _read_meta_json(book_dir / "meta.json")
-    if not meta:
-        meta = _read_meta_json(book_dir / "conversion.json")
 
-    source = str(meta.get("source") or meta.get("source_pdf", "")).strip() or f"{book_dir.name}.pdf"
-    updated_at = str(meta.get("updated_at") or meta.get("converted_at", "")).strip() or directory_modified_at
+    source = str(meta.get("source", "")).strip() or f"{book_dir.name}.pdf"
+    updated_at = str(meta.get("updated_at", "")).strip() or directory_modified_at
     created_at = str(meta.get("created_at", "")).strip() or updated_at
 
     return {
@@ -260,7 +270,7 @@ def build_manifest(
             if not book_dir.is_dir():
                 continue
             generated = _build_book_entry(book_dir)
-            metadata = metadata_by_id.get(generated["id"], {})
+            metadata = _lookup_metadata(metadata_by_id, generated["type"], generated["id"])
             display_title = metadata.get("display_title")
             title = display_title or generated["generated_title"]
 
@@ -293,7 +303,7 @@ def build_manifest(
             if not article_dir.is_dir():
                 continue
             generated = _build_article_entry(article_dir)
-            metadata = metadata_by_id.get(generated["id"], {})
+            metadata = _lookup_metadata(metadata_by_id, generated["type"], generated["id"])
             display_title = metadata.get("display_title")
             title = display_title or generated["generated_title"]
 
@@ -323,7 +333,7 @@ def build_manifest(
             if not site_dir.is_dir():
                 continue
             generated = _build_site_entry(site_dir)
-            metadata = metadata_by_id.get(generated["id"], {})
+            metadata = _lookup_metadata(metadata_by_id, generated["type"], generated["id"])
             display_title = metadata.get("display_title")
             title = display_title or generated["generated_title"]
 
@@ -347,6 +357,7 @@ def build_manifest(
             }
             catalog_entries.append(entry)
 
+    _assert_unique_catalog_ids(catalog_entries)
     catalog_entries.sort(key=_sort_key)
 
     public_items = [

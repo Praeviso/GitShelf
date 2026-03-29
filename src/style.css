@@ -3322,8 +3322,8 @@ button {
 /* --- GitShelf: Class aliases (new names → existing styles) --- */
 
 .home-container { max-width: var(--bookshelf-max-width); margin: 0 auto; }
-.home-heading { font-family: var(--font-ui); font-size: 24px; font-weight: 700; color: var(--color-text-heading); margin: 0 0 var(--space-6) 0; }
-.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-4); }
+.home-subtitle { font-family: var(--font-ui); font-size: 14px; font-weight: 400; color: var(--color-text-tertiary); margin: 0 0 var(--space-4) 0; letter-spacing: 0.01em; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); }
 .home-empty { text-align: center; color: var(--color-text-secondary); font-family: var(--font-ui); font-size: 16px; padding: var(--space-12) var(--space-4); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); background-color: var(--color-bg-surface); }
 .home-empty-icon { display: block; margin: 0 auto var(--space-4); color: var(--color-text-tertiary); }
 .home-error { padding: var(--space-4); border-radius: var(--radius-md); background-color: rgba(197, 48, 48, 0.1); color: var(--color-error); font-family: var(--font-ui); }
@@ -3331,7 +3331,7 @@ button {
 /* Content card: mirrors book-card styles */
 .content-card { display: flex; flex-direction: column; text-decoration: none; color: inherit; border-radius: var(--radius-lg); overflow: hidden; background-color: var(--color-bg-surface); border: 1px solid var(--color-border); box-shadow: var(--shadow-subtle); transition: transform var(--transition-normal) ease, box-shadow var(--transition-normal) ease; }
 .content-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
-.content-card-cover { position: relative; aspect-ratio: 6/7; display: flex; align-items: center; justify-content: center; padding: var(--space-4); overflow: hidden; transition: filter var(--transition-normal) ease, transform var(--transition-normal) ease; }
+.content-card-cover { position: relative; aspect-ratio: 3/4; display: flex; align-items: center; justify-content: center; padding: var(--space-4); overflow: hidden; transition: filter var(--transition-normal) ease, transform var(--transition-normal) ease; }
 .content-card-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.35)); pointer-events: none; }
 .content-card:hover .content-card-cover { filter: brightness(1.05); transform: scale(1.03); }
 .content-card-cover--featured::before { content: ''; position: absolute; inset: 0; border: 2px solid rgba(255,255,255,0.3); border-radius: var(--radius-md); z-index: 1; pointer-events: none; }
@@ -3377,33 +3377,63 @@ button {
 .home-tabs {
   display: flex;
   gap: var(--space-1);
-  margin-bottom: var(--space-5);
-  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-6);
   padding-bottom: 0;
 }
 
 .home-tab {
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--color-text-secondary);
-  background: none;
+  background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
-  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  padding: 6px var(--space-3);
   cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
   white-space: nowrap;
 }
 
 .home-tab:hover {
   color: var(--color-text-heading);
+  background-color: var(--color-bg-subtle);
 }
 
 .home-tab--active {
   color: var(--color-accent);
-  border-bottom-color: var(--color-accent);
+  background-color: var(--color-accent-subtle);
   font-weight: 600;
+}
+
+/* Card entrance stagger */
+@keyframes card-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.home-grid .content-card {
+  animation: card-fade-in var(--transition-slow) ease both;
+}
+
+.home-grid .content-card:nth-child(1) { animation-delay: 0ms; }
+.home-grid .content-card:nth-child(2) { animation-delay: 60ms; }
+.home-grid .content-card:nth-child(3) { animation-delay: 120ms; }
+.home-grid .content-card:nth-child(4) { animation-delay: 180ms; }
+.home-grid .content-card:nth-child(5) { animation-delay: 240ms; }
+.home-grid .content-card:nth-child(6) { animation-delay: 300ms; }
+.home-grid .content-card:nth-child(n+7) { animation-delay: 350ms; }
+
+/* Mobile: 2-column compact grid */
+@media (max-width: 519px) {
+  .home-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+  .content-card-cover { aspect-ratio: 4/5; }
+  .content-card-cover-title { font-size: 13px; -webkit-line-clamp: 3; }
+  .content-card-info { padding: var(--space-2); }
+  .content-card-title { font-size: 13px; }
+  .content-card-meta { font-size: 11px; }
+  .content-card-meta-sep { display: none; }
+  .content-card-date { display: block; }
 }
 
 /* --- Article breadcrumb --- */

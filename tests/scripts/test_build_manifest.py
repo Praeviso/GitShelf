@@ -20,7 +20,7 @@ def _create_book(
     *,
     book_id: str,
     title: str,
-    source_pdf: str | None = None,
+    source: str | None = None,
 ) -> None:
     book_dir = books_dir / book_id
     chapters_dir = book_dir / "chapters"
@@ -28,17 +28,36 @@ def _create_book(
     _write_json(book_dir / "toc.json", {"title": title, "children": []})
     (chapters_dir / "01-intro.md").write_text("# Intro\n\nhello world\n", encoding="utf-8")
 
-    if source_pdf:
+    if source:
         _write_json(
-            book_dir / "conversion.json",
+            book_dir / "meta.json",
             {
-                "book_id": book_id,
-                "source_pdf": source_pdf,
+                "id": book_id,
+                "type": "book",
+                "source": source,
                 "split_level": 1,
                 "page_count": 8,
-                "converted_at": "2026-03-25T10:00:00Z",
+                "created_at": "2026-03-25T10:00:00Z",
+                "updated_at": "2026-03-25T10:00:00Z",
             },
         )
+
+
+def _create_article(articles_dir: Path, *, article_id: str, title: str) -> None:
+    article_dir = articles_dir / article_id
+    article_dir.mkdir(parents=True, exist_ok=True)
+    (article_dir / "content.md").write_text(f"# {title}\n\nhello world\n", encoding="utf-8")
+    _write_json(
+        article_dir / "meta.json",
+        {
+            "id": article_id,
+            "type": "doc",
+            "title": title,
+            "source": f"{article_id}.md",
+            "created_at": "2026-03-25T10:00:00Z",
+            "updated_at": "2026-03-25T10:00:00Z",
+        },
+    )
 
 
 class BuildManifestTest(unittest.TestCase):
@@ -50,15 +69,16 @@ class BuildManifestTest(unittest.TestCase):
             metadata_path = root / "docs" / "catalog-metadata.json"
             catalog_path = root / "docs" / "catalog.json"
 
-            _create_book(books_dir, book_id="book-one", title="Raw One", source_pdf="source-one.pdf")
-            _create_book(books_dir, book_id="book-two", title="Raw Two", source_pdf="source-two.pdf")
+            _create_book(books_dir, book_id="book-one", title="Raw One", source="source-one.pdf")
+            _create_book(books_dir, book_id="book-two", title="Raw Two", source="source-two.pdf")
 
-            # Legacy "books" key still supported for backward compat
             _write_json(
                 metadata_path,
                 {
-                    "books": {
-                        "book-one": {
+                    "items": [
+                        {
+                            "id": "book-one",
+                            "type": "book",
                             "display_title": "Curated One",
                             "author": "Alice",
                             "visibility": "hidden",
@@ -66,13 +86,15 @@ class BuildManifestTest(unittest.TestCase):
                             "featured": True,
                             "manual_order": 5,
                         },
-                        "book-two": {
+                        {
+                            "id": "book-two",
+                            "type": "book",
                             "display_title": "Curated Two",
                             "summary": "Public summary",
                             "visibility": "published",
                             "manual_order": 1,
                         },
-                    }
+                    ]
                 },
             )
 
@@ -106,7 +128,7 @@ class BuildManifestTest(unittest.TestCase):
             metadata_path = root / "docs" / "catalog-metadata.json"
             catalog_path = root / "docs" / "catalog.json"
 
-            _create_book(books_dir, book_id="book-three", title="Raw Three", source_pdf=None)
+            _create_book(books_dir, book_id="book-three", title="Raw Three", source=None)
 
             build_manifest(
                 books_dir=books_dir,
@@ -117,7 +139,7 @@ class BuildManifestTest(unittest.TestCase):
 
             self.assertTrue(metadata_path.exists())
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            self.assertEqual(metadata, {"items": {}})
+            self.assertEqual(metadata, {"items": []})
 
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(manifest["items"][0]["source"], "book-three.pdf")
@@ -131,22 +153,55 @@ class BuildManifestTest(unittest.TestCase):
             metadata_path = root / "docs" / "catalog-metadata.json"
             catalog_path = root / "docs" / "catalog.json"
 
-            _create_book(books_dir, book_id="book-four", title="Raw Four", source_pdf="book-four.pdf")
+            _create_book(books_dir, book_id="book-four", title="Raw Four", source="book-four.pdf")
             _write_json(
                 metadata_path,
                 {
-                    "books": {
-                        "book-four": {
+                    "items": [
+                        {
+                            "id": "book-four",
+                            "type": "book",
                             "manual_order": "not-an-int",
                             "visibility": "draft",
                         }
-                    }
+                    ]
                 },
             )
 
             with self.assertRaisesRegex(ValueError, "Invalid catalog metadata for book-four"):
                 build_manifest(
                     books_dir=books_dir,
+                    output_path=manifest_path,
+                    catalog_metadata_path=metadata_path,
+                    catalog_output_path=catalog_path,
+                )
+
+    def test_typed_metadata_can_distinguish_same_id_across_content_types(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            books_dir = root / "docs" / "books"
+            articles_dir = root / "docs" / "articles"
+            manifest_path = root / "docs" / "manifest.json"
+            metadata_path = root / "docs" / "catalog-metadata.json"
+            catalog_path = root / "docs" / "catalog.json"
+
+            _create_book(books_dir, book_id="shared-id", title="Raw Book", source="shared.pdf")
+            _create_article(articles_dir, article_id="shared-id", title="Raw Article")
+
+            _write_json(
+                metadata_path,
+                {
+                    "items": [
+                        {"id": "shared-id", "type": "book", "display_title": "Curated Book"},
+                        {"id": "shared-id", "type": "doc", "display_title": "Curated Article"},
+                    ]
+                },
+            )
+
+            with self.assertRaisesRegex(ValueError, "Duplicate content id 'shared-id'"):
+                build_manifest(
+                    books_dir=books_dir,
+                    articles_dir=articles_dir,
                     output_path=manifest_path,
                     catalog_metadata_path=metadata_path,
                     catalog_output_path=catalog_path,

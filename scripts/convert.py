@@ -13,6 +13,7 @@ import re
 import shutil
 import sys
 import tempfile
+import unicodedata
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,10 +46,20 @@ except ImportError:
 
 MAX_PAGES_PER_CHUNK = 500
 PAGE_THRESHOLD = 600
-CONVERSION_METADATA_FILENAME = "conversion.json"
+BOOK_METADATA_FILENAME = "meta.json"
 CACHE_DIR = Path("cache/markdown")
 FAILURES_FILENAME = "failures.json"
 CHAPTER_IMAGES_PREFIX = "../images/"
+CONTENT_DIR_NAMES = {
+    "book": "books",
+    "doc": "articles",
+    "site": "sites",
+}
+CONTENT_ID_SUFFIXES = {
+    "book": "book",
+    "doc": "doc",
+    "site": "site",
+}
 
 
 def _pdf_md5(pdf_path: Path) -> str:
@@ -103,18 +114,64 @@ def split_pdf(pdf_path: Path, chunk_size: int = MAX_PAGES_PER_CHUNK) -> list[Pat
 
 
 def generate_book_id(pdf_path: Path) -> str:
-    """Generate URL-safe book ID from PDF filename."""
-    name = pdf_path.stem.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", name)
-    slug = slug.strip("-")
-    return slug
+    """Generate a stable, URL-safe content ID from a filename."""
+    name = unicodedata.normalize("NFKC", pdf_path.stem).strip().lower()
+    slug = re.sub(r"[\s_]+", "-", name)
+    slug = re.sub(r"[^\w-]+", "-", slug, flags=re.UNICODE)
+    slug = re.sub(r"-{2,}", "-", slug).strip("-")
+    if slug:
+        return slug
+
+    digest = hashlib.sha1(pdf_path.stem.encode("utf-8")).hexdigest()[:8]
+    return f"item-{digest}"
+
+
+def _content_id_conflicts(
+    item_id: str,
+    docs_root: Path,
+    content_type: str,
+    *,
+    allow_same_type_existing: bool,
+) -> bool:
+    for known_type, directory in CONTENT_DIR_NAMES.items():
+        target = docs_root / directory / item_id
+        if not target.exists():
+            continue
+        if known_type == content_type and allow_same_type_existing:
+            continue
+        return True
+    return False
+
+
+def ensure_unique_content_id(base_id: str, docs_root: Path, content_type: str) -> str:
+    """Return an ID that is unique across books, articles, and sites."""
+    if not _content_id_conflicts(
+        base_id,
+        docs_root,
+        content_type,
+        allow_same_type_existing=True,
+    ):
+        return base_id
+
+    suffix = CONTENT_ID_SUFFIXES.get(content_type, "item")
+    candidate = f"{base_id}-{suffix}"
+    index = 2
+    while _content_id_conflicts(
+        candidate,
+        docs_root,
+        content_type,
+        allow_same_type_existing=False,
+    ):
+        candidate = f"{base_id}-{suffix}-{index}"
+        index += 1
+    return candidate
 
 
 def _utc_now_iso() -> str:
     return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _write_conversion_metadata(
+def _write_book_metadata(
     book_dir: Path,
     *,
     book_id: str,
@@ -122,17 +179,28 @@ def _write_conversion_metadata(
     pdf_md5: str,
     split_level: int,
     page_count: int,
-    converted_at: str,
+    updated_at: str,
 ) -> None:
+    created_at = updated_at
+    existing_meta_path = book_dir / BOOK_METADATA_FILENAME
+    if existing_meta_path.exists():
+        try:
+            existing = json.loads(existing_meta_path.read_text(encoding="utf-8"))
+            created_at = str(existing.get("created_at", "")).strip() or created_at
+        except json.JSONDecodeError:
+            pass
+
     data = {
-        "book_id": book_id,
-        "source_pdf": source_pdf,
+        "id": book_id,
+        "type": "book",
+        "source": source_pdf,
         "pdf_md5": pdf_md5,
         "split_level": split_level,
         "page_count": page_count,
-        "converted_at": converted_at,
+        "created_at": created_at,
+        "updated_at": updated_at,
     }
-    target = book_dir / CONVERSION_METADATA_FILENAME
+    target = book_dir / BOOK_METADATA_FILENAME
     target.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -204,11 +272,11 @@ def _resolve_input_pdf(input_dir: Path, input_filename: str) -> Path:
 
 
 def _find_cached_md5(output_dir: Path, source_pdf: str) -> str | None:
-    """Search conversion.json files for a matching source_pdf and return its MD5."""
-    for meta_file in output_dir.glob(f"*/{CONVERSION_METADATA_FILENAME}"):
+    """Search book metadata files for a matching source and return its MD5."""
+    for meta_file in output_dir.glob(f"*/{BOOK_METADATA_FILENAME}"):
         try:
             meta = json.loads(meta_file.read_text(encoding="utf-8"))
-            if meta.get("source_pdf") == source_pdf and meta.get("pdf_md5"):
+            if meta.get("source") == source_pdf and meta.get("pdf_md5"):
                 return meta["pdf_md5"]
         except (json.JSONDecodeError, KeyError):
             continue
@@ -262,14 +330,14 @@ def reconvert_from_cache(
     generate_book_structure(book_id, title, chapters, output_dir, split_level)
 
     book_dir = output_dir / book_id
-    _write_conversion_metadata(
+    _write_book_metadata(
         book_dir,
         book_id=book_id,
         source_pdf=source_pdf,
         pdf_md5=md5,
         split_level=split_level,
         page_count=page_count,
-        converted_at=_utc_now_iso(),
+        updated_at=_utc_now_iso(),
     )
     print(f"  Reconversion complete.")
 
@@ -335,7 +403,11 @@ def convert_single_pdf(
         5. Generate book directory structure
         6. Delete the source PDF
     """
-    book_id = generate_book_id(pdf_path)
+    book_id = ensure_unique_content_id(
+        generate_book_id(pdf_path),
+        output_dir.parent,
+        "book",
+    )
     title = pdf_path.stem
 
     print(f"Processing: {pdf_path.name} -> {book_id}")
@@ -384,14 +456,14 @@ def convert_single_pdf(
     generate_book_structure(book_id, title, chapters, output_dir, split_level)
 
     book_dir = output_dir / book_id
-    _write_conversion_metadata(
+    _write_book_metadata(
         book_dir,
         book_id=book_id,
         source_pdf=pdf_path.name,
         pdf_md5=md5,
         split_level=split_level,
         page_count=page_count,
-        converted_at=_utc_now_iso(),
+        updated_at=_utc_now_iso(),
     )
 
     # Clear any prior failure record for this PDF

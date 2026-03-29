@@ -18,3 +18,11 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 if (typeof window !== 'undefined') {
   window.scrollTo = () => {};
 }
+
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

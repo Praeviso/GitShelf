@@ -5,7 +5,8 @@ describe('generateCoverGradient', () => {
   it('returns a CSS gradient string', () => {
     const gradient = generateCoverGradient('test-book');
     expect(gradient).toContain('gradient');
-    expect(gradient).toContain('hsl');
+    expect(gradient).toContain('linear-gradient');
+    expect(gradient).not.toContain('undefined');
   });
 
   it('returns different gradients for different book IDs', () => {
@@ -24,5 +25,11 @@ describe('generateCoverGradient', () => {
     expect(generateCoverGradient('')).toContain('gradient');
     expect(generateCoverGradient(null)).toContain('gradient');
     expect(generateCoverGradient(undefined)).toContain('gradient');
+  });
+
+  it('does not generate invalid color tokens for known catalog ids', () => {
+    expect(generateCoverGradient('deep-research-report')).not.toContain('undefined');
+    expect(generateCoverGradient('designing-data-intensive-applications-2nd-edition')).not.toContain('undefined');
+    expect(generateCoverGradient('progit')).not.toContain('undefined');
   });
 });

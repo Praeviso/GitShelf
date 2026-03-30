@@ -6,34 +6,28 @@ function hashString(str) {
   return hash;
 }
 
-// Warm hue palette: terracotta, amber, rust, sienna, olive, burgundy
-const WARM_HUES = [18, 25, 32, 38, 45, 12, 350, 355, 8, 52];
+const COVER_PALETTES = [
+  ['#8B6F5C', '#5C3D2E', '#3A2218'],
+  ['#4A5548', '#2D3A2B', '#1A2318'],
+  ['#C4956A', '#A67B5B', '#8B6347'],
+  ['#6F5A4D', '#503A31', '#33211B'],
+  ['#69725E', '#46503F', '#2B3428'],
+  ['#A27A5D', '#7D5A45', '#53382C'],
+  ['#7F6758', '#5B463B', '#3B2922'],
+  ['#5F6A58', '#3E4738', '#242B22'],
+];
 
 export function generateCoverGradient(bookId) {
   const h = hashString(bookId || 'default');
-  const hue1 = WARM_HUES[h % WARM_HUES.length];
-  const hue2 = WARM_HUES[(h >> 8) % WARM_HUES.length];
-  const angle = (h >> 4) % 360;
-  const pattern = h % 4;
-  const sat1 = 28 + ((h >> 12) % 18);
-  const light1 = 38 + ((h >> 16) % 18);
-  const sat2 = 25 + ((h >> 20) % 20);
-  const light2 = 42 + ((h >> 24) % 16);
+  const palette = COVER_PALETTES[h % COVER_PALETTES.length];
+  const angle = 145 + ((h >>> 4) % 5 - 2) * 6;
+  const textureAngle = 24 + ((h >>> 8) % 4) * 9;
+  const highlightX = 68 + ((h >>> 12) % 10);
+  const highlightY = 14 + ((h >>> 16) % 12);
 
-  const c1 = `hsl(${hue1},${sat1}%,${light1}%)`;
-  const c2 = `hsl(${hue2},${sat2}%,${light2}%)`;
-  const texture = `repeating-linear-gradient(${(angle + 30) % 360}deg, transparent, transparent 8px, rgba(255,255,255,0.04) 8px, rgba(255,255,255,0.04) 16px)`;
-
-  switch (pattern) {
-    case 0:
-      return `${texture}, linear-gradient(${angle}deg, ${c1}, ${c2})`;
-    case 1:
-      return `${texture}, linear-gradient(${angle}deg, ${c1} 0%, ${c2} 60%, ${c1} 100%)`;
-    case 2:
-      return `${texture}, radial-gradient(ellipse at 30% 20%, ${c1}, ${c2})`;
-    case 3:
-      return `${texture}, radial-gradient(circle at 70% 80%, rgba(255,255,255,0.08) 0%, transparent 50%), linear-gradient(${angle}deg, ${c1}, ${c2})`;
-    default:
-      return `${texture}, linear-gradient(${angle}deg, ${c1}, ${c2})`;
-  }
+  return [
+    `repeating-linear-gradient(${textureAngle}deg, rgba(255,255,255,0.03) 0 8px, rgba(255,255,255,0.055) 8px 16px)`,
+    `radial-gradient(circle at ${highlightX}% ${highlightY}%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 16%, transparent 42%)`,
+    `linear-gradient(${angle}deg, ${palette[0]} 0%, ${palette[1]} 58%, ${palette[2]} 100%)`,
+  ].join(', ');
 }

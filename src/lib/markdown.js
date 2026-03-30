@@ -103,8 +103,49 @@ md.renderer.rules.image = function (tokens, idx, _options, env) {
   return `<figure>${imgHtml}</figure>`;
 };
 
+/** Normalize Unicode bullet chars (•, ◦, ▪, ▸, ‣) into markdown list syntax.
+ *  Skips fenced code blocks and math blocks to avoid false positives. */
+function normalizeBullets(text) {
+  const bulletRe = /^([ \t]*)[•◦▪▸‣]\s*/gm;
+  const fenceRe = /^([ \t]*)(```|~~~|\$\$)/gm;
+  // Find all fenced regions (code blocks, math blocks)
+  const protected_ = [];
+  let match;
+  let openIdx = -1;
+  let openFence = '';
+  const lines = text.split('\n');
+  let pos = 0;
+  for (const line of lines) {
+    const lineStart = pos;
+    const lineEnd = pos + line.length;
+    const trimmed = line.trimStart();
+    if (openIdx === -1) {
+      if (trimmed.startsWith('```') || trimmed.startsWith('~~~') || trimmed.startsWith('$$')) {
+        openIdx = lineStart;
+        openFence = trimmed.slice(0, trimmed.startsWith('$$') ? 2 : 3);
+      }
+    } else if (trimmed === openFence || (openFence === '```' && trimmed.startsWith('```')) || (openFence === '~~~' && trimmed.startsWith('~~~'))) {
+      protected_.push([openIdx, lineEnd]);
+      openIdx = -1;
+    }
+    pos = lineEnd + 1; // +1 for the \n
+  }
+  if (openIdx !== -1) protected_.push([openIdx, text.length]);
+
+  return text.replace(bulletRe, (full, indent, offset) => {
+    for (const [start, end] of protected_) {
+      if (offset >= start && offset < end) return full;
+    }
+    return indent + '- ';
+  });
+}
+
+export { normalizeBullets as _normalizeBullets };
+
 export function renderMarkdown(text, options = {}) {
-  return sanitizeHtml(md.render(text, { assetBase: options.assetBase || '' }));
+  const normalized = normalizeBullets(text);
+  const html = sanitizeHtml(md.render(normalized, { assetBase: options.assetBase || '' }));
+  return html.replace(/<table[\s>]/g, '<div class="table-scroll">$&').replace(/<\/table>/g, '</table></div>');
 }
 
 function createCopyIcon() {

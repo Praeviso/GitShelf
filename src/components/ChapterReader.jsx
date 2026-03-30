@@ -3,7 +3,7 @@ import { fetchToc, fetchText, flattenChapters } from '../lib/api';
 import { renderMarkdown, highlightCodeBlocks, addCopyButtons } from '../lib/markdown';
 import { ChapterNav } from './ChapterNav';
 
-export function ChapterReader({ bookId, slug, anchor, onTocLoaded }) {
+export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAnchor }) {
   const [content, setContent] = useState(null);
   const [tocData, setTocData] = useState(null);
   const [error, setError] = useState(null);
@@ -144,6 +144,39 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded }) {
     el.addEventListener('click', onClick);
     return () => el.removeEventListener('click', onClick);
   }, [content]);
+
+  // Scroll-spy: track which heading the reader has scrolled past
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || !onActiveAnchor) return;
+
+    const headings = Array.from(el.querySelectorAll('h2[id]'));
+    if (!headings.length) return;
+
+    const offset = 80;
+    let ticking = false;
+
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        let active = null;
+        for (const h of headings) {
+          if (h.getBoundingClientRect().top <= offset) {
+            active = h.id;
+          } else {
+            break;
+          }
+        }
+        onActiveAnchor(active);
+        ticking = false;
+      });
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [content, onActiveAnchor]);
 
   // Keyboard navigation
   useEffect(() => {

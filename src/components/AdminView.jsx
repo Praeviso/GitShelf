@@ -17,6 +17,55 @@ const CONTENT_TYPE_LABELS = {
   site: 'Site',
 };
 
+function formatCompact(n) {
+  if (n == null) return '\u2014';
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 10000) return Math.round(n / 1000) + 'k';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return String(n);
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  if (Number.isNaN(then)) return '';
+  const diff = Math.max(0, now - then);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
+function ContentTypeIcon({ type }) {
+  if (type === 'book') return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+    </svg>
+  );
+  if (type === 'doc') return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+    </svg>
+  );
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
 function getItemType(item) {
   return item?.type || 'book';
 }
@@ -420,9 +469,9 @@ function CatalogSection({ repo }) {
     finally { setDeleting(false); }
   };
 
-  const quickVisibilityChange = async (item) => {
+  const quickVisibilityChange = async (item, targetVis) => {
     const cycle = { published: 'hidden', hidden: 'archived', archived: 'published' };
-    const nextVis = cycle[normalizeVisibility(item.visibility)];
+    const nextVis = targetVis || cycle[normalizeVisibility(item.visibility)];
     const next = deepCloneItems(catalog).map((b) => b.id === item.id ? { ...b, visibility: nextVis, updated_at: toIsoNow() } : b);
     try {
       await persistCatalog(repo, next, `chore(admin): set visibility=${nextVis} for ${item.id}`);
@@ -459,31 +508,32 @@ function CatalogSection({ repo }) {
       <h2>Content Catalog</h2>
       {notice && <div class="admin-repo-banner">{notice}</div>}
 
-      <div class="admin-summary-pills" role="status">
-        <div class="admin-summary-pill">
+      <div class="admin-summary-pills" role="group" aria-label="Filter by visibility">
+        <button class={`admin-summary-pill${visFilter === 'all' ? ' admin-summary-pill--active' : ''}`} onClick={() => setVisFilter('all')} aria-pressed={visFilter === 'all'}>
           <span class="admin-summary-pill-count">{counts.total}</span>
           <span class="admin-summary-pill-label">Total</span>
-        </div>
-        <div class="admin-summary-pill admin-summary-pill--published">
+        </button>
+        <button class={`admin-summary-pill admin-summary-pill--published${visFilter === 'published' ? ' admin-summary-pill--active' : ''}`} onClick={() => setVisFilter('published')} aria-pressed={visFilter === 'published'}>
           <span class="admin-summary-pill-count">{counts.published}</span>
           <span class="admin-summary-pill-label">Published</span>
-        </div>
-        <div class="admin-summary-pill admin-summary-pill--hidden">
+        </button>
+        <button class={`admin-summary-pill admin-summary-pill--hidden${visFilter === 'hidden' ? ' admin-summary-pill--active' : ''}`} onClick={() => setVisFilter('hidden')} aria-pressed={visFilter === 'hidden'}>
           <span class="admin-summary-pill-count">{counts.hidden}</span>
           <span class="admin-summary-pill-label">Hidden</span>
-        </div>
-        <div class="admin-summary-pill admin-summary-pill--archived">
+        </button>
+        <button class={`admin-summary-pill admin-summary-pill--archived${visFilter === 'archived' ? ' admin-summary-pill--active' : ''}`} onClick={() => setVisFilter('archived')} aria-pressed={visFilter === 'archived'}>
           <span class="admin-summary-pill-count">{counts.archived}</span>
           <span class="admin-summary-pill-label">Archived</span>
-        </div>
+        </button>
       </div>
 
       <div class="admin-catalog-toolbar">
-        <input type="search" class="admin-text-input" placeholder="Search…" value={search} onInput={(e) => setSearch(e.target.value)} aria-label="Search content" />
-        <select class="admin-select" value={visFilter} onChange={(e) => setVisFilter(e.target.value)} aria-label="Filter by visibility">
-          <option value="all">All</option>
-          {VISIBILITY_VALUES.map((v) => <option key={v} value={v}>{v}</option>)}
-        </select>
+        <div class="admin-search-wrap">
+          <svg class="admin-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input type="search" class="admin-text-input admin-search-input" placeholder="Search content…" value={search} onInput={(e) => setSearch(e.target.value)} aria-label="Search content" />
+        </div>
         <select class="admin-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort order">
           <option value="public_order">Featured + Manual Order</option>
           <option value="updated_desc">Recently Updated</option>
@@ -534,69 +584,70 @@ function CatalogSection({ repo }) {
         </div>
       ) : (
         <>
-          {/* Desktop table */}
-          <div class="admin-books-list">
-            <table class="admin-table admin-catalog-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '40px' }}><input type="checkbox" class="admin-checkbox" checked={selected.size === filtered.length && filtered.length > 0} indeterminate={selected.size > 0 && selected.size < filtered.length} onChange={toggleAll} aria-label="Select all items" /></th>
-                  <th>Title</th><th style={{ width: '96px' }}>Lifecycle</th><th style={{ width: '240px' }}>Provenance</th><th style={{ width: '120px' }}>Stats</th><th style={{ width: '112px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((item) => (
-                  <>
-                    <tr key={item.id}>
-                      <td><input type="checkbox" class="admin-checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} aria-label={`Select ${getDisplayTitle(item)}`} /></td>
-                      <td>
-                        <div class="admin-book-title-wrap">
-                          <a class="admin-book-title-link" href={getContentHref(item)}>{getDisplayTitle(item)}</a>
-                          <span class="admin-book-subtle">{getContentTypeLabel(item)}</span>
-                          {item.author && <span class="admin-book-subtle">{item.author}</span>}
-                          <span class="admin-book-subtle">id: {item.id}</span>
-                          {item.tags && item.tags.length > 0 && (
-                            <div class="admin-tag-list">
-                              {item.tags.slice(0, 4).map((t) => <span key={t} class="admin-tag">{t}</span>)}
-                              {item.tags.length > 4 && <span class="admin-tag">+{item.tags.length - 4}</span>}
-                            </div>
-                          )}
+          {/* Desktop grid table */}
+          <div class="admin-catalog-grid">
+            <div class="admin-catalog-grid-head">
+              <div class="admin-grid-cell admin-grid-cell--check"><input type="checkbox" class="admin-checkbox" checked={selected.size === filtered.length && filtered.length > 0} indeterminate={selected.size > 0 && selected.size < filtered.length} onChange={toggleAll} aria-label="Select all items" /></div>
+              <div class="admin-grid-cell">Title</div>
+              <div class="admin-grid-cell">Status</div>
+              <div class="admin-grid-cell">Source</div>
+              <div class="admin-grid-cell admin-grid-cell--right">Stats</div>
+              <div class="admin-grid-cell admin-grid-cell--right"></div>
+            </div>
+            {filtered.map((item) => (
+              <div key={item.id}>
+                <div class="admin-catalog-grid-row">
+                  <div class="admin-grid-cell admin-grid-cell--check"><input type="checkbox" class="admin-checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} aria-label={`Select ${getDisplayTitle(item)}`} /></div>
+                  <div class="admin-grid-cell admin-grid-cell--title">
+                    <span class={`admin-type-icon admin-type-icon--${getItemType(item)}`}><ContentTypeIcon type={getItemType(item)} /></span>
+                    <div class="admin-book-title-wrap">
+                      <a class="admin-book-title-link" href={getContentHref(item)}>{getDisplayTitle(item)}</a>
+                      <div class="admin-title-meta">
+                        <span class="admin-book-subtle">{getContentTypeLabel(item)}</span>
+                        <span class="admin-title-sep" aria-hidden="true">&middot;</span>
+                        <span class="admin-id-mono">{item.id}</span>
+                      </div>
+                      {item.tags && item.tags.length > 0 && (
+                        <div class="admin-tag-list">
+                          {item.tags.slice(0, 4).map((t) => <span key={t} class="admin-tag">{t}</span>)}
+                          {item.tags.length > 4 && <span class="admin-tag">+{item.tags.length - 4}</span>}
                         </div>
-                      </td>
-                      <td>
-                        <button class="admin-state-pill-btn" onClick={() => quickVisibilityChange(item)} title={`Click to cycle visibility (currently ${normalizeVisibility(item.visibility)})`} aria-label={`Change visibility for ${getDisplayTitle(item)}, currently ${normalizeVisibility(item.visibility)}`}>
-                          <span class={`admin-state-pill admin-state-pill--${normalizeVisibility(item.visibility)}`}>{normalizeVisibility(item.visibility)}</span>
-                        </button>
-                      </td>
-                      <td>
-                        <div class="admin-provenance">
-                          <span class="admin-mono">{item.source || 'source not set'}</span>
-                          {item.entry && <span class="admin-book-subtle">{item.entry}</span>}
-                          <span class="admin-book-subtle">Updated: {item.updated_at ? dateTimeFormatter.format(new Date(item.updated_at)) : 'N/A'}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div class="admin-meta-lines">
-                          <span>Chapters: {item.chapters_count != null ? numberFormatter.format(item.chapters_count) : 'N/A'}</span>
-                          <span>Words: {item.word_count != null ? numberFormatter.format(item.word_count) : 'N/A'}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div class="admin-actions">
-                          <button class="btn btn-primary btn-sm" onClick={() => setEditingId(editingId === item.id ? null : item.id)}>{editingId === item.id ? 'Close' : 'Edit'}</button>
-                          <ActionMenu items={[
-                            ...(getItemType(item) === 'book' ? [{ label: 'Re-process', onClick: () => handleReprocess(item) }, { separator: true }] : []),
-                            { label: 'Force Delete', danger: true, onClick: () => setDeleteTarget(item) },
-                          ]} />
-                        </div>
-                      </td>
-                    </tr>
-                    {editingId === item.id && (
-                      <tr class="admin-editor-row"><td colspan="6"><BookEditor book={item} onSave={handleSaveItem} onCancel={() => setEditingId(null)} /></td></tr>
-                    )}
-                  </>
-                ))}
-              </tbody>
-            </table>
+                      )}
+                    </div>
+                  </div>
+                  <div class="admin-grid-cell admin-grid-cell--status">
+                    <span class={`admin-status-dot admin-status-dot--${normalizeVisibility(item.visibility)}`} />
+                    <span class="admin-status-label">{normalizeVisibility(item.visibility)}</span>
+                  </div>
+                  <div class="admin-grid-cell admin-grid-cell--source">
+                    <span class="admin-source-file">{item.source || '\u2014'}</span>
+                    <span class="admin-source-time">{timeAgo(item.updated_at) || '\u2014'}</span>
+                  </div>
+                  <div class="admin-grid-cell admin-grid-cell--stats">
+                    <span class="admin-stat-value">{formatCompact(item.chapters_count)}</span>
+                    <span class="admin-stat-unit">ch.</span>
+                    <span class="admin-stat-divider" aria-hidden="true" />
+                    <span class="admin-stat-value">{formatCompact(item.word_count)}</span>
+                    <span class="admin-stat-unit">words</span>
+                  </div>
+                  <div class="admin-grid-cell admin-grid-cell--actions">
+                    <ActionMenu items={[
+                      { label: 'Edit', onClick: () => setEditingId(editingId === item.id ? null : item.id) },
+                      ...(getItemType(item) === 'book' ? [{ label: 'Re-process', onClick: () => handleReprocess(item) }] : []),
+                      { separator: true },
+                      { label: 'Publish', onClick: () => quickVisibilityChange(item, 'published'), hidden: normalizeVisibility(item.visibility) === 'published' },
+                      { label: 'Hide', onClick: () => quickVisibilityChange(item, 'hidden'), hidden: normalizeVisibility(item.visibility) === 'hidden' },
+                      { label: 'Archive', onClick: () => quickVisibilityChange(item, 'archived'), hidden: normalizeVisibility(item.visibility) === 'archived' },
+                      { separator: true },
+                      { label: 'Delete', danger: true, onClick: () => setDeleteTarget(item) },
+                    ].filter((i) => !i.hidden)} />
+                  </div>
+                </div>
+                {editingId === item.id && (
+                  <div class="admin-catalog-grid-editor"><BookEditor book={item} onSave={handleSaveItem} onCancel={() => setEditingId(null)} /></div>
+                )}
+              </div>
+            ))}
           </div>
 
           {/* Mobile cards */}
@@ -605,27 +656,31 @@ function CatalogSection({ repo }) {
               <div key={item.id} class="admin-catalog-card">
                 <div class="admin-catalog-card-header">
                   <input type="checkbox" class="admin-checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)} aria-label={`Select ${getDisplayTitle(item)}`} />
+                  <span class={`admin-type-icon admin-type-icon--${getItemType(item)}`}><ContentTypeIcon type={getItemType(item)} /></span>
                   <a class="admin-book-title-link" href={getContentHref(item)}>{getDisplayTitle(item)}</a>
-                  <button class="admin-state-pill-btn" onClick={() => quickVisibilityChange(item)} title={`Click to cycle visibility`} aria-label={`Change visibility for ${getDisplayTitle(item)}, currently ${normalizeVisibility(item.visibility)}`}>
-                    <span class={`admin-state-pill admin-state-pill--${normalizeVisibility(item.visibility)}`}>{normalizeVisibility(item.visibility)}</span>
-                  </button>
+                  <span class="admin-card-status">
+                    <span class={`admin-status-dot admin-status-dot--${normalizeVisibility(item.visibility)}`} />
+                    <span class="admin-status-label">{normalizeVisibility(item.visibility)}</span>
+                  </span>
                 </div>
                 <div class="admin-catalog-card-meta">
-                  <span>{getContentTypeLabel(item)}</span>
-                  {item.author && <span>{item.author}</span>}
-                  {item.source && <span class="admin-mono">{item.source}</span>}
-                  {item.entry && <span class="admin-book-subtle">{item.entry}</span>}
+                  {item.source && <span class="admin-source-file">{item.source}</span>}
                   <span class="admin-book-subtle">
-                    {[item.chapters_count != null && `${numberFormatter.format(item.chapters_count)} ch`, item.word_count != null && `${numberFormatter.format(item.word_count)} words`].filter(Boolean).join(' \u00b7 ')}
+                    {[item.chapters_count != null && `${formatCompact(item.chapters_count)} ch`, item.word_count != null && `${formatCompact(item.word_count)} words`].filter(Boolean).join(' \u00b7 ')}
                   </span>
-                  {item.updated_at && <span class="admin-book-subtle">Updated: {dateFormatter.format(new Date(item.updated_at))}</span>}
+                  {item.updated_at && <span class="admin-book-subtle">{timeAgo(item.updated_at)}</span>}
                 </div>
                 <div class="admin-catalog-card-actions">
-                  <button class="btn btn-primary btn-sm" onClick={() => setEditingId(editingId === item.id ? null : item.id)}>{editingId === item.id ? 'Close' : 'Edit'}</button>
                   <ActionMenu items={[
-                    ...(getItemType(item) === 'book' ? [{ label: 'Re-process', onClick: () => handleReprocess(item) }, { separator: true }] : []),
-                    { label: 'Force Delete', danger: true, onClick: () => setDeleteTarget(item) },
-                  ]} />
+                    { label: 'Edit', onClick: () => setEditingId(editingId === item.id ? null : item.id) },
+                    ...(getItemType(item) === 'book' ? [{ label: 'Re-process', onClick: () => handleReprocess(item) }] : []),
+                    { separator: true },
+                    { label: 'Publish', onClick: () => quickVisibilityChange(item, 'published'), hidden: normalizeVisibility(item.visibility) === 'published' },
+                    { label: 'Hide', onClick: () => quickVisibilityChange(item, 'hidden'), hidden: normalizeVisibility(item.visibility) === 'hidden' },
+                    { label: 'Archive', onClick: () => quickVisibilityChange(item, 'archived'), hidden: normalizeVisibility(item.visibility) === 'archived' },
+                    { separator: true },
+                    { label: 'Delete', danger: true, onClick: () => setDeleteTarget(item) },
+                  ].filter((i) => !i.hidden)} />
                 </div>
                 {editingId === item.id && (
                   <div class="admin-catalog-card-editor"><BookEditor book={item} onSave={handleSaveItem} onCancel={() => setEditingId(null)} /></div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'preact/compat';
 import { useRouter } from '../hooks/useRouter';
 import { useTheme } from '../hooks/useTheme';
+import { useContentWidth } from '../hooks/useContentWidth';
 import { useScrollProgress } from '../hooks/useScrollProgress';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
@@ -18,9 +19,11 @@ const AdminView = lazy(() => import('./AdminView'));
 export function App() {
   const route = useRouter();
   const [theme, toggleTheme] = useTheme();
+  const [contentWidth, cycleContentWidth] = useContentWidth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tocData, setTocData] = useState(null);
   const [breadcrumb, setBreadcrumb] = useState('');
+  const [activeAnchor, setActiveAnchor] = useState(null);
 
   const isChapter = route.type === 'chapter';
   const isBookRoute = route.type === 'book-overview' || route.type === 'chapter';
@@ -37,6 +40,10 @@ export function App() {
   const handleTocLoaded = useCallback((data) => {
     setTocData(data);
     setBreadcrumb(data?.title || '');
+  }, []);
+
+  const handleActiveAnchor = useCallback((anchor) => {
+    setActiveAnchor(anchor);
   }, []);
 
   // Handle site redirect
@@ -58,6 +65,7 @@ export function App() {
       setTocData(null);
       setBreadcrumb('');
       setSidebarOpen(false);
+      setActiveAnchor(null);
     }
   }, [isBookRoute]);
 
@@ -70,6 +78,9 @@ export function App() {
       <TopBar
         theme={theme}
         onToggleTheme={toggleTheme}
+        contentWidth={contentWidth}
+        onCycleContentWidth={cycleContentWidth}
+        showWidthToggle={isChapter}
         breadcrumb={breadcrumb}
         showHomeLink={route.type !== 'home'}
         showSidebarToggle={showSidebar}
@@ -84,6 +95,7 @@ export function App() {
           tocData={tocData}
           bookId={route.bookId}
           activeSlug={route.slug}
+          activeAnchor={activeAnchor}
           open={sidebarOpen}
           onClose={handleCloseSidebar}
         />
@@ -105,6 +117,7 @@ export function App() {
             slug={route.slug}
             anchor={route.anchor}
             onTocLoaded={handleTocLoaded}
+            onActiveAnchor={handleActiveAnchor}
           />
         )}
         {route.type === 'article' && (

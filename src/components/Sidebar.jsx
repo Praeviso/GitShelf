@@ -1,13 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
 
-function ChevronIcon() {
-  return (
-    <svg class="chevron" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M6 4l4 4-4 4" />
-    </svg>
-  );
-}
-
 function CloseIcon() {
   return (
     <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -16,14 +8,18 @@ function CloseIcon() {
   );
 }
 
-function SidebarItem({ item, bookId, activeSlug, depth }) {
+function SidebarItem({ item, bookId, activeSlug, activeAnchor, depth }) {
   const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-  const isActive = item.slug === activeSlug && !item.anchor;
+  // Page-level (h1, no anchor): always active while on this page
+  const isPageActive = item.slug === activeSlug && !item.anchor;
+  // Sub-section (h2, has anchor): active when scroll-spy matches
+  const isSpyActive = item.anchor && item.slug === activeSlug && item.anchor === activeAnchor;
+  const isActive = isSpyActive || isPageActive;
   const containsActive = hasChildren && activeSlug && subtreeContainsSlug(item.children, activeSlug);
   const [collapsed, setCollapsed] = useState(!containsActive);
 
   useEffect(() => {
-    if (containsActive) setCollapsed(false);
+    setCollapsed(!containsActive);
   }, [containsActive]);
 
   const href = item.anchor
@@ -32,23 +28,9 @@ function SidebarItem({ item, bookId, activeSlug, depth }) {
       ? `#/books/${bookId}/${item.slug}`
       : undefined;
 
-  const nestedId = hasChildren ? `toc-section-${item.slug || depth}` : undefined;
-
   return (
     <li class={`sidebar-item${collapsed ? ' collapsed' : ''}${depth === 0 ? ' sidebar-item-top' : ''}`}>
       <div class="sidebar-item-row">
-        {hasChildren && (
-          <button
-            type="button"
-            class="sidebar-toggle-btn"
-            aria-label={`Toggle section: ${item.title}`}
-            aria-expanded={String(!collapsed)}
-            aria-controls={nestedId}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCollapsed((c) => !c); }}
-          >
-            <ChevronIcon />
-          </button>
-        )}
         <a
           class={`sidebar-link${isActive ? ' active' : ''}`}
           href={href}
@@ -59,9 +41,9 @@ function SidebarItem({ item, bookId, activeSlug, depth }) {
       </div>
       {hasChildren && (
         <div class={`sidebar-collapse${collapsed ? ' collapsed' : ''}`}>
-          <ul class="sidebar-list sidebar-list-nested" id={nestedId}>
+          <ul class="sidebar-list sidebar-list-nested">
             {item.children.map((child, i) => (
-              <SidebarItem key={child.slug || i} item={child} bookId={bookId} activeSlug={activeSlug} depth={depth + 1} />
+              <SidebarItem key={child.slug || i} item={child} bookId={bookId} activeSlug={activeSlug} activeAnchor={activeAnchor} depth={depth + 1} />
             ))}
           </ul>
         </div>
@@ -78,7 +60,7 @@ function subtreeContainsSlug(items, slug) {
   return false;
 }
 
-export function Sidebar({ tocData, bookId, activeSlug, open, onClose }) {
+export function Sidebar({ tocData, bookId, activeSlug, activeAnchor, open, onClose }) {
   const navRef = useRef(null);
   const scrollRef = useRef(null);
   const isDesktop = useIsDesktop();
@@ -112,7 +94,7 @@ export function Sidebar({ tocData, bookId, activeSlug, open, onClose }) {
     };
   }, [tocData]);
 
-  // Auto-scroll to active item
+  // Auto-scroll to active item — only on chapter navigation, not scroll-spy
   useEffect(() => {
     if (!scrollRef.current) return;
     const timer = setTimeout(() => {
@@ -160,7 +142,7 @@ export function Sidebar({ tocData, bookId, activeSlug, open, onClose }) {
             {tocData && tocData.children && (
               <ul class="sidebar-list">
                 {tocData.children.map((item, i) => (
-                  <SidebarItem key={item.slug || i} item={item} bookId={bookId} activeSlug={activeSlug} depth={0} />
+                  <SidebarItem key={item.slug || i} item={item} bookId={bookId} activeSlug={activeSlug} activeAnchor={activeAnchor} depth={0} />
                 ))}
               </ul>
             )}

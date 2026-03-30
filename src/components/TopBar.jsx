@@ -17,6 +17,25 @@ function MoonIcon() {
   );
 }
 
+const WIDTH_LABELS = {
+  narrow: 'Narrow width',
+  medium: 'Medium width',
+  wide: 'Wide width',
+};
+
+function WidthIcon({ width }) {
+  // Three horizontal lines with varying lengths to indicate width
+  const bars = { narrow: [6, 8, 6], medium: [8, 12, 8], wide: [12, 16, 12] };
+  const b = bars[width] || bars.medium;
+  return (
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <line x1={(20 - b[0]) / 2} y1="6" x2={(20 + b[0]) / 2} y2="6" />
+      <line x1={(20 - b[1]) / 2} y1="10" x2={(20 + b[1]) / 2} y2="10" />
+      <line x1={(20 - b[2]) / 2} y1="14" x2={(20 + b[2]) / 2} y2="14" />
+    </svg>
+  );
+}
+
 function GearIcon() {
   return (
     <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -27,11 +46,14 @@ function GearIcon() {
 }
 
 export function TopBar({
-  theme, onToggleTheme, breadcrumb, showHomeLink,
+  theme, onToggleTheme,
+  contentWidth, onCycleContentWidth, showWidthToggle,
+  breadcrumb, showHomeLink,
   showSidebarToggle, onToggleSidebar, sidebarExpanded,
   progress, showProgress,
 }) {
   const themeLabel = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+  const widthLabel = WIDTH_LABELS[contentWidth] || 'Content width';
 
   return (
     <header class="top-bar">
@@ -51,6 +73,11 @@ export function TopBar({
         {breadcrumb && <span class="top-bar-breadcrumb">{breadcrumb}</span>}
       </div>
       <div class="top-bar-right">
+        {showWidthToggle && (
+          <button class="width-toggle" type="button" aria-label={widthLabel} title={widthLabel} onClick={onCycleContentWidth}>
+            <WidthIcon width={contentWidth} />
+          </button>
+        )}
         <button class="theme-toggle" type="button" aria-label={themeLabel} onClick={onToggleTheme}>
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>

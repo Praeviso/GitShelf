@@ -639,7 +639,7 @@ function CatalogSection({ repo }) {
                       { label: 'Hide', onClick: () => quickVisibilityChange(item, 'hidden'), hidden: normalizeVisibility(item.visibility) === 'hidden' },
                       { label: 'Archive', onClick: () => quickVisibilityChange(item, 'archived'), hidden: normalizeVisibility(item.visibility) === 'archived' },
                       { separator: true },
-                      { label: 'Delete', danger: true, onClick: () => setDeleteTarget(item) },
+                      { label: 'Force Delete', danger: true, onClick: () => setDeleteTarget(item) },
                     ].filter((i) => !i.hidden)} />
                   </div>
                 </div>
@@ -679,7 +679,7 @@ function CatalogSection({ repo }) {
                     { label: 'Hide', onClick: () => quickVisibilityChange(item, 'hidden'), hidden: normalizeVisibility(item.visibility) === 'hidden' },
                     { label: 'Archive', onClick: () => quickVisibilityChange(item, 'archived'), hidden: normalizeVisibility(item.visibility) === 'archived' },
                     { separator: true },
-                    { label: 'Delete', danger: true, onClick: () => setDeleteTarget(item) },
+                    { label: 'Force Delete', danger: true, onClick: () => setDeleteTarget(item) },
                   ].filter((i) => !i.hidden)} />
                 </div>
                 {editingId === item.id && (

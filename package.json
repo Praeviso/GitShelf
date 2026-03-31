@@ -1,6 +1,6 @@
 {
   "name": "@praeviso/gitshelf",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI for uploading and managing content in GitShelf repositories.",
   "license": "MIT",
   "homepage": "https://github.com/Kritoooo/GitShelf#readme",

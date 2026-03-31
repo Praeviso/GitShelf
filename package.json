@@ -1,5 +1,5 @@
 {
-  "name": "gitshelf",
+  "name": "@praeviso/gitshelf",
   "version": "0.1.1",
   "description": "CLI for uploading and managing content in GitShelf repositories.",
   "license": "MIT",

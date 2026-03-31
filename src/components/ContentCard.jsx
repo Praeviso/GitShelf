@@ -15,6 +15,19 @@ function ExternalLinkIcon() {
   );
 }
 
+function onCoverMouseMove(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 100;
+  const y = ((e.clientY - rect.top) / rect.height) * 100;
+  e.currentTarget.style.setProperty('--mx', `${x}%`);
+  e.currentTarget.style.setProperty('--my', `${y}%`);
+}
+
+function onCoverMouseLeave(e) {
+  e.currentTarget.style.removeProperty('--mx');
+  e.currentTarget.style.removeProperty('--my');
+}
+
 export function ContentCard({ item, activeTab }) {
   const type = getItemType(item);
   const title = getItemDisplayTitle(item);
@@ -47,6 +60,8 @@ export function ContentCard({ item, activeTab }) {
       <div
         class={`content-card-cover${item.featured ? ' content-card-cover--featured' : ''}`}
         style={{ background: generateCoverGradient(item.id) }}
+        onMouseMove={onCoverMouseMove}
+        onMouseLeave={onCoverMouseLeave}
       >
         <div class="content-card-spine" aria-hidden="true" />
         {badge && <span class={`content-card-type-badge content-card-type-badge--${type}`}>{badge}</span>}

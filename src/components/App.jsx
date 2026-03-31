@@ -137,7 +137,6 @@ export function App() {
         )}
         {route.type === 'chapter' && (
           <ChapterReader
-            key={route.bookId + route.slug}
             bookId={route.bookId}
             slug={route.slug}
             anchor={route.anchor}

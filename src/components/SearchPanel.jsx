@@ -145,7 +145,7 @@ export function SearchPanel({ open, onClose, bookId, tocData }) {
           ))}
 
           {showEmpty && (
-            <div class="search-empty">No results found</div>
+            <div class="search-empty">No results for "{query}"</div>
           )}
 
           {showHint && (

@@ -126,7 +126,7 @@ export function HomeView() {
       )}
 
       {!error && filtered && filtered.length > 0 && (
-        <div class="home-grid">
+        <div class="home-grid" key={activeTab}>
           {filtered.map((item) => <ContentCard key={item.id} item={item} activeTab={activeTab} />)}
         </div>
       )}

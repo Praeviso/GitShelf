@@ -3,14 +3,22 @@ import { fetchToc, fetchText, flattenChapters } from '../lib/api';
 import { renderMarkdown, highlightCodeBlocks, addCopyButtons } from '../lib/markdown';
 import { ChapterNav } from './ChapterNav';
 
+const TRANSITION_MS = 200;
+
 export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAnchor }) {
   const [content, setContent] = useState(null);
   const [tocData, setTocData] = useState(null);
   const [error, setError] = useState(null);
   const [wordCount, setWordCount] = useState(0);
+  const [phase, setPhase] = useState('enter'); // 'enter' | 'idle' | 'exit'
   const contentRef = useRef(null);
+  const prevSlugRef = useRef(slug);
+  const pendingRef = useRef(null);
 
+  // Detect slug change -> trigger exit -> load new content -> enter
   useEffect(() => {
+    if (slug === prevSlugRef.current && content !== null) return;
+
     let cancelled = false;
 
     async function load() {
@@ -21,10 +29,8 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAncho
         ]);
         if (cancelled) return;
 
-        setTocData(toc);
-        setContent(renderMarkdown(text, { assetBase: `books/${bookId}` }));
-        setWordCount(text.split(/\s+/).filter(Boolean).length);
-        onTocLoaded(toc);
+        const html = renderMarkdown(text, { assetBase: `books/${bookId}` });
+        const wc = text.split(/\s+/).filter(Boolean).length;
 
         const chapters = flattenChapters(toc.children || []);
         const chapter = chapters.find((c) => c.slug === slug && !c.anchor);
@@ -33,6 +39,20 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAncho
         titleParts.push(toc.title || bookId);
         titleParts.push('GitShelf');
         document.title = titleParts.join(' \u00b7 ');
+
+        // If we had previous content, play exit first
+        if (content !== null && prevSlugRef.current !== slug) {
+          pendingRef.current = { toc, html, wc };
+          setPhase('exit');
+        } else {
+          // First load - just enter
+          setTocData(toc);
+          setContent(html);
+          setWordCount(wc);
+          onTocLoaded(toc);
+          prevSlugRef.current = slug;
+          setPhase('enter');
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err.message);
@@ -43,7 +63,33 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAncho
 
     load();
     return () => { cancelled = true; };
-  }, [bookId, slug, onTocLoaded]);
+  }, [bookId, slug]);
+
+  // After exit animation ends, swap in new content
+  useEffect(() => {
+    if (phase !== 'exit') return;
+    const timer = setTimeout(() => {
+      const pending = pendingRef.current;
+      if (pending) {
+        setTocData(pending.toc);
+        setContent(pending.html);
+        setWordCount(pending.wc);
+        onTocLoaded(pending.toc);
+        pendingRef.current = null;
+      }
+      prevSlugRef.current = slug;
+      setPhase('enter');
+      window.scrollTo(0, 0);
+    }, TRANSITION_MS);
+    return () => clearTimeout(timer);
+  }, [phase, slug, onTocLoaded]);
+
+  // After enter animation completes, go idle
+  useEffect(() => {
+    if (phase !== 'enter') return;
+    const timer = setTimeout(() => setPhase('idle'), 350);
+    return () => clearTimeout(timer);
+  }, [phase]);
 
   // Highlight code blocks
   useEffect(() => {
@@ -56,7 +102,7 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAncho
 
   // Scroll to anchor or top
   useEffect(() => {
-    if (content === null) return;
+    if (content === null || phase === 'exit') return;
     if (anchor) {
       requestAnimationFrame(() => {
         const target = document.getElementById(anchor);
@@ -65,10 +111,8 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAncho
           target.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth', block: 'start' });
         }
       });
-    } else {
-      window.scrollTo(0, 0);
     }
-  }, [content, anchor]);
+  }, [content, anchor, phase]);
 
   // Heading anchor: click to copy link
   useEffect(() => {
@@ -185,15 +229,15 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAncho
     const idx = chapters.findIndex((c) => c.slug === slug && !c.anchor);
     if (idx === -1) return;
 
-      const onKeyDown = (e) => {
-        const tag = e.target.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
-        if (e.key === 'ArrowLeft' && idx > 0) {
-          location.hash = `#/books/${encodeURIComponent(bookId)}/${encodeURIComponent(chapters[idx - 1].slug)}`;
-        } else if (e.key === 'ArrowRight' && idx < chapters.length - 1) {
-          location.hash = `#/books/${encodeURIComponent(bookId)}/${encodeURIComponent(chapters[idx + 1].slug)}`;
-        }
-      };
+    const onKeyDown = (e) => {
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+      if (e.key === 'ArrowLeft' && idx > 0) {
+        location.hash = `#/books/${encodeURIComponent(bookId)}/${encodeURIComponent(chapters[idx - 1].slug)}`;
+      } else if (e.key === 'ArrowRight' && idx < chapters.length - 1) {
+        location.hash = `#/books/${encodeURIComponent(bookId)}/${encodeURIComponent(chapters[idx + 1].slug)}`;
+      }
+    };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [slug, tocData, bookId]);
@@ -209,8 +253,10 @@ export function ChapterReader({ bookId, slug, anchor, onTocLoaded, onActiveAncho
   const chapters = tocData ? flattenChapters(tocData.children || []) : [];
   const currentIndex = chapters.findIndex((c) => c.slug === slug && !c.anchor);
 
+  const transitionClass = phase === 'exit' ? ' chapter-exit' : phase === 'enter' ? ' chapter-enter' : '';
+
   return (
-    <div class="view-enter">
+    <div class={transitionClass}>
       <article
         class="reader-content"
         ref={contentRef}

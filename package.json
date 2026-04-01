@@ -1,0 +1,61 @@
+{
+  "name": "@praeviso/gitshelf",
+  "version": "0.1.3",
+  "description": "CLI for uploading and managing content in GitShelf repositories.",
+  "license": "MIT",
+  "homepage": "https://github.com/Praeviso/GitShelf#readme",
+  "bugs": {
+    "url": "https://github.com/Praeviso/GitShelf/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Praeviso/GitShelf.git"
+  },
+  "keywords": [
+    "gitshelf",
+    "cli",
+    "github-pages",
+    "books",
+    "markdown"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "cli/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "gitshelf": "./cli/index.js",
+    "gitshelf-mcp": "./cli/mcp-server.mjs"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:frontend": "vitest run --config vite.frontend.config.js"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.5",
+    "@preact/signals": "^2.8.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/preact": "^3.2.4",
+    "jsdom": "^29.0.1",
+    "katex": "^0.16.42",
+    "markdown-it": "^14.1.1",
+    "markdown-it-texmath": "^1.0.0",
+    "preact": "^10.29.0",
+    "vite": "^8.0.2",
+    "vitest": "^4.1.1"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.3.6"
+  }
+}

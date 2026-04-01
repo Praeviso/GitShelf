@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitShelf CLI"
+  short_description: "Deploy PDFs, Markdown, and static sites to GitHub Pages via the GitShelf CLI"
+  default_prompt: "Use $gitshelf-cli to operate a GitShelf site — a zero-cost GitHub Pages content platform. Upload PDFs (auto-converted to chapter books), Markdown files (rendered as documents), or ZIP archives (deployed as static sites). Manage the catalog: list items, inspect details, edit metadata, delete content, reconvert books, and check processing failures."

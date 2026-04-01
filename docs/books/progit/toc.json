@@ -1,0 +1,583 @@
+{
+  "title": "progit",
+  "children": [
+    {
+      "title": "Pro Git",
+      "slug": "01-pro-git"
+    },
+    {
+      "title": "Table of Contents",
+      "slug": "02-table-of-contents"
+    },
+    {
+      "title": "License",
+      "slug": "03-license"
+    },
+    {
+      "title": "Preface by Scott Chacon",
+      "slug": "04-preface-by-scott-chacon"
+    },
+    {
+      "title": "Preface by Ben Straub",
+      "slug": "05-preface-by-ben-straub"
+    },
+    {
+      "title": "Dedications",
+      "slug": "06-dedications"
+    },
+    {
+      "title": "Contributors",
+      "slug": "07-contributors"
+    },
+    {
+      "title": "Introduction",
+      "slug": "08-introduction"
+    },
+    {
+      "title": "Getting Started",
+      "slug": "09-getting-started",
+      "children": [
+        {
+          "title": "About Version Control",
+          "slug": "09-getting-started",
+          "anchor": "about-version-control"
+        },
+        {
+          "title": "A Short History of Git",
+          "slug": "09-getting-started",
+          "anchor": "a-short-history-of-git"
+        },
+        {
+          "title": "What is Git?",
+          "slug": "09-getting-started",
+          "anchor": "what-is-git"
+        },
+        {
+          "title": "The Command Line",
+          "slug": "09-getting-started",
+          "anchor": "the-command-line"
+        },
+        {
+          "title": "Installing Git",
+          "slug": "09-getting-started",
+          "anchor": "installing-git"
+        },
+        {
+          "title": "First-Time Git Setup",
+          "slug": "09-getting-started",
+          "anchor": "first-time-git-setup"
+        },
+        {
+          "title": "Getting Help",
+          "slug": "09-getting-started",
+          "anchor": "getting-help"
+        },
+        {
+          "title": "Summary",
+          "slug": "09-getting-started",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Git Basics",
+      "slug": "10-git-basics",
+      "children": [
+        {
+          "title": "Getting a Git Repository",
+          "slug": "10-git-basics",
+          "anchor": "getting-a-git-repository"
+        },
+        {
+          "title": "Recording Changes to the Repository",
+          "slug": "10-git-basics",
+          "anchor": "recording-changes-to-the-repository"
+        },
+        {
+          "title": "Starter Projects",
+          "slug": "10-git-basics",
+          "anchor": "starter-projects"
+        },
+        {
+          "title": "Viewing the Commit History",
+          "slug": "10-git-basics",
+          "anchor": "viewing-the-commit-history"
+        },
+        {
+          "title": "Undoing Things",
+          "slug": "10-git-basics",
+          "anchor": "undoing-things"
+        },
+        {
+          "title": "Working with Remotes",
+          "slug": "10-git-basics",
+          "anchor": "working-with-remotes"
+        },
+        {
+          "title": "Tagging",
+          "slug": "10-git-basics",
+          "anchor": "tagging"
+        },
+        {
+          "title": "Git Aliases",
+          "slug": "10-git-basics",
+          "anchor": "git-aliases"
+        },
+        {
+          "title": "Summary",
+          "slug": "10-git-basics",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Git Branching",
+      "slug": "11-git-branching",
+      "children": [
+        {
+          "title": "Branches in a Nutshell",
+          "slug": "11-git-branching",
+          "anchor": "branches-in-a-nutshell"
+        },
+        {
+          "title": "Basic Branching and Merging",
+          "slug": "11-git-branching",
+          "anchor": "basic-branching-and-merging"
+        },
+        {
+          "title": "Branch Management",
+          "slug": "11-git-branching",
+          "anchor": "branch-management"
+        },
+        {
+          "title": "Branching Workflows",
+          "slug": "11-git-branching",
+          "anchor": "branching-workflows"
+        },
+        {
+          "title": "Remote Branches",
+          "slug": "11-git-branching",
+          "anchor": "remote-branches"
+        },
+        {
+          "title": "Rebasing",
+          "slug": "11-git-branching",
+          "anchor": "rebasing"
+        },
+        {
+          "title": "Summary",
+          "slug": "11-git-branching",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Git on the Server",
+      "slug": "12-git-on-the-server",
+      "children": [
+        {
+          "title": "The Protocols",
+          "slug": "12-git-on-the-server",
+          "anchor": "the-protocols"
+        },
+        {
+          "title": "Smart HTTP",
+          "slug": "12-git-on-the-server",
+          "anchor": "smart-http"
+        },
+        {
+          "title": "GitWeb",
+          "slug": "12-git-on-the-server",
+          "anchor": "gitweb"
+        },
+        {
+          "title": "GitLab",
+          "slug": "12-git-on-the-server",
+          "anchor": "gitlab"
+        },
+        {
+          "title": "Third Party Hosted Options",
+          "slug": "12-git-on-the-server",
+          "anchor": "third-party-hosted-options"
+        },
+        {
+          "title": "Summary",
+          "slug": "12-git-on-the-server",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Distributed Git",
+      "slug": "13-distributed-git",
+      "children": [
+        {
+          "title": "Distributed Workflows",
+          "slug": "13-distributed-git",
+          "anchor": "distributed-workflows"
+        },
+        {
+          "title": "Contributing to a Project",
+          "slug": "13-distributed-git",
+          "anchor": "contributing-to-a-project"
+        },
+        {
+          "title": "Summary",
+          "slug": "13-distributed-git",
+          "anchor": "summary"
+        },
+        {
+          "title": "Maintaining a Project",
+          "slug": "13-distributed-git",
+          "anchor": "maintaining-a-project"
+        },
+        {
+          "title": "Summary",
+          "slug": "13-distributed-git",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Git Tools",
+      "slug": "14-git-tools",
+      "children": [
+        {
+          "title": "Revision Selection",
+          "slug": "14-git-tools",
+          "anchor": "revision-selection"
+        },
+        {
+          "title": "Interactive Staging",
+          "slug": "14-git-tools",
+          "anchor": "interactive-staging"
+        },
+        {
+          "title": "Stashing and Cleaning",
+          "slug": "14-git-tools",
+          "anchor": "stashing-and-cleaning"
+        },
+        {
+          "title": "Stashing Your Work",
+          "slug": "14-git-tools",
+          "anchor": "stashing-your-work"
+        },
+        {
+          "title": "Searching",
+          "slug": "14-git-tools",
+          "anchor": "searching"
+        },
+        {
+          "title": "Rewriting History",
+          "slug": "14-git-tools",
+          "anchor": "rewriting-history"
+        },
+        {
+          "title": "Reset Demystified",
+          "slug": "14-git-tools",
+          "anchor": "reset-demystified"
+        },
+        {
+          "title": "Advanced Merging",
+          "slug": "14-git-tools",
+          "anchor": "advanced-merging"
+        },
+        {
+          "title": "master",
+          "slug": "14-git-tools",
+          "anchor": "master"
+        },
+        {
+          "title": "Rerere",
+          "slug": "14-git-tools",
+          "anchor": "rerere"
+        },
+        {
+          "title": "Debugging with Git",
+          "slug": "14-git-tools",
+          "anchor": "debugging-with-git"
+        },
+        {
+          "title": "Submodules",
+          "slug": "14-git-tools",
+          "anchor": "submodules"
+        },
+        {
+          "title": "Bundling",
+          "slug": "14-git-tools",
+          "anchor": "bundling"
+        },
+        {
+          "title": "Replace",
+          "slug": "14-git-tools",
+          "anchor": "replace"
+        },
+        {
+          "title": "Credential Storage",
+          "slug": "14-git-tools",
+          "anchor": "credential-storage"
+        },
+        {
+          "title": "Summary",
+          "slug": "14-git-tools",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Customizing Git",
+      "slug": "15-customizing-git",
+      "children": [
+        {
+          "title": "Git Configuration",
+          "slug": "15-customizing-git",
+          "anchor": "git-configuration"
+        },
+        {
+          "title": "Git Attributes",
+          "slug": "15-customizing-git",
+          "anchor": "git-attributes"
+        },
+        {
+          "title": "Git Hooks",
+          "slug": "15-customizing-git",
+          "anchor": "git-hooks"
+        },
+        {
+          "title": "An Example Git-Enforced Policy",
+          "slug": "15-customizing-git",
+          "anchor": "an-example-git-enforced-policy"
+        },
+        {
+          "title": "Summary",
+          "slug": "15-customizing-git",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Git and Other Systems",
+      "slug": "16-git-and-other-systems",
+      "children": [
+        {
+          "title": "Git as a Client",
+          "slug": "16-git-and-other-systems",
+          "anchor": "git-as-a-client"
+        },
+        {
+          "title": "Migrating to Git",
+          "slug": "16-git-and-other-systems",
+          "anchor": "migrating-to-git"
+        },
+        {
+          "title": "Summary",
+          "slug": "16-git-and-other-systems",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Git Internals",
+      "slug": "17-git-internals",
+      "children": [
+        {
+          "title": "Plumbing and Porcelain",
+          "slug": "17-git-internals",
+          "anchor": "plumbing-and-porcelain"
+        },
+        {
+          "title": "Git Objects",
+          "slug": "17-git-internals",
+          "anchor": "git-objects"
+        },
+        {
+          "title": "Git References",
+          "slug": "17-git-internals",
+          "anchor": "git-references"
+        },
+        {
+          "title": "Packfiles",
+          "slug": "17-git-internals",
+          "anchor": "packfiles"
+        },
+        {
+          "title": "The Refspec",
+          "slug": "17-git-internals",
+          "anchor": "the-refspec"
+        },
+        {
+          "title": "Transfer Protocols",
+          "slug": "17-git-internals",
+          "anchor": "transfer-protocols"
+        },
+        {
+          "title": "Maintenance and Data Recovery",
+          "slug": "17-git-internals",
+          "anchor": "maintenance-and-data-recovery"
+        },
+        {
+          "title": "Environment Variables",
+          "slug": "17-git-internals",
+          "anchor": "environment-variables"
+        },
+        {
+          "title": "Summary",
+          "slug": "17-git-internals",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Appendix A: Git in Other Environments",
+      "slug": "18-appendix-a-git-in-other-environments",
+      "children": [
+        {
+          "title": "Graphical Interfaces",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "graphical-interfaces"
+        },
+        {
+          "title": "Git in Visual Studio",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "git-in-visual-studio"
+        },
+        {
+          "title": "Git in Visual Studio Code",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "git-in-visual-studio-code"
+        },
+        {
+          "title": "Git in Intellij / PyCharm / WebStorm /PhpStorm / RubyMine",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "git-in-intellij-pycharm-webstorm-phpstorm-rubymine"
+        },
+        {
+          "title": "Git in Sublime Text",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "git-in-sublime-text"
+        },
+        {
+          "title": "Git in Bash",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "git-in-bash"
+        },
+        {
+          "title": "Git in Zsh",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "git-in-zsh"
+        },
+        {
+          "title": "Git in PowerShell",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "git-in-powershell"
+        },
+        {
+          "title": "Summary",
+          "slug": "18-appendix-a-git-in-other-environments",
+          "anchor": "summary"
+        }
+      ]
+    },
+    {
+      "title": "Appendix B: Embedding Git in your Applications",
+      "slug": "19-appendix-b-embedding-git-in-your-applications",
+      "children": [
+        {
+          "title": "Command-line Git",
+          "slug": "19-appendix-b-embedding-git-in-your-applications",
+          "anchor": "command-line-git"
+        },
+        {
+          "title": "Libgit2",
+          "slug": "19-appendix-b-embedding-git-in-your-applications",
+          "anchor": "libgit2"
+        },
+        {
+          "title": "JGit",
+          "slug": "19-appendix-b-embedding-git-in-your-applications",
+          "anchor": "jgit"
+        },
+        {
+          "title": "go-git",
+          "slug": "19-appendix-b-embedding-git-in-your-applications",
+          "anchor": "go-git"
+        },
+        {
+          "title": "Dulwich",
+          "slug": "19-appendix-b-embedding-git-in-your-applications",
+          "anchor": "dulwich"
+        }
+      ]
+    },
+    {
+      "title": "Appendix C: Git Commands",
+      "slug": "20-appendix-c-git-commands",
+      "children": [
+        {
+          "title": "Setup and Config",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "setup-and-config"
+        },
+        {
+          "title": "Getting and Creating Projects",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "getting-and-creating-projects"
+        },
+        {
+          "title": "Basic Snapshotting",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "basic-snapshotting"
+        },
+        {
+          "title": "Branching and Merging",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "branching-and-merging"
+        },
+        {
+          "title": "Sharing and Updating Projects",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "sharing-and-updating-projects"
+        },
+        {
+          "title": "Inspection and Comparison",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "inspection-and-comparison"
+        },
+        {
+          "title": "Debugging",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "debugging"
+        },
+        {
+          "title": "Patching",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "patching"
+        },
+        {
+          "title": "Email",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "email"
+        },
+        {
+          "title": "External Systems",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "external-systems"
+        },
+        {
+          "title": "Administration",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "administration"
+        },
+        {
+          "title": "Plumbing Commands",
+          "slug": "20-appendix-c-git-commands",
+          "anchor": "plumbing-commands"
+        }
+      ]
+    },
+    {
+      "title": "Index",
+      "slug": "21-index"
+    }
+  ]
+}

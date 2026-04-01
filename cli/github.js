@@ -126,6 +126,12 @@ async function readJson(repo, path, token) {
   return { path, sha: data.sha, data: JSON.parse(decoded) };
 }
 
+async function readFile(repo, path, token) {
+  const data = await api(`/repos/${repo}/contents/${path}`, { token });
+  if (!data?.content) throw new Error(`No content at ${path}`);
+  return Buffer.from(data.content, 'base64').toString('utf-8');
+}
+
 async function commitOps(repo, message, operations, token) {
   const ops = [...new Map(operations.filter((o) => o?.path).map((o) => [o.path, o])).values()];
   if (!ops.length) return;
@@ -345,5 +351,6 @@ module.exports = {
   verifyToken, fetchCatalog, persistCatalog, uploadContent, deleteItem,
   triggerReconvert, fetchFailures, dismissFailure, retryFailure,
   normalizeItem, normalizeTags, normalizeVisibility, getDisplayTitle,
+  readJson, readFile,
   VISIBILITY_VALUES, ACCEPTED_EXTENSIONS, MAX_FILE_SIZE,
 };

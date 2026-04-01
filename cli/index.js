@@ -32,6 +32,7 @@ Commands:
   failures                     List processing failures
   failures dismiss <filename>  Dismiss a failure
   failures retry <filename>    Retry a failed conversion
+  mcp                          Start MCP server (stdio transport)
 
 Options:
   --token <pat>       GitHub PAT (or set GITSHELF_TOKEN)
@@ -73,6 +74,7 @@ async function main() {
     delete: () => require('./commands/delete'),
     reconvert: () => require('./commands/reconvert'),
     failures: () => require('./commands/failures'),
+    mcp: () => ({ run: () => import('./mcp-server.mjs') }),
   };
 
   if (!commands[command]) {

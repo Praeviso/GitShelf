@@ -13,19 +13,86 @@ function stripFragment(href) {
   return normalizeHref(href).split('#', 1)[0];
 }
 
+function isCfiTarget(target) {
+  return typeof target === 'string' && target.startsWith('epubcfi(');
+}
+
 function findChapterBySlug(chapters, slug) {
   return chapters.find((chapter) => chapter.slug === slug) || null;
 }
 
-function findChapterByHref(chapters, href) {
+function findChapterCandidatesByHref(chapters, href) {
   const normalizedHref = normalizeHref(href);
-  if (!normalizedHref) return null;
+  if (!normalizedHref) return [];
 
-  const exact = chapters.find((chapter) => normalizeHref(chapter.href) === normalizedHref);
-  if (exact) return exact;
+  const exactMatches = chapters.filter((chapter) => normalizeHref(chapter.href) === normalizedHref);
+  if (exactMatches.length > 0) {
+    return exactMatches;
+  }
 
   const sectionPath = stripFragment(normalizedHref);
-  return chapters.find((chapter) => stripFragment(chapter.href) === sectionPath) || null;
+  return chapters.filter((chapter) => stripFragment(chapter.href) === sectionPath);
+}
+
+function findChapterByHref(chapters, href) {
+  return findChapterCandidatesByHref(chapters, href)[0] || null;
+}
+
+function normalizeMatchText(text) {
+  return String(text || '')
+    .normalize('NFKC')
+    .replace(/\s+/gu, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .toLowerCase();
+}
+
+function findElementByChapterTitle(doc, title) {
+  if (!doc?.body || !title) return null;
+
+  const target = normalizeMatchText(title);
+  if (!target) return null;
+
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  let best = null;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const text = normalizeMatchText(node.textContent);
+    if (!text) continue;
+    if (text !== target && !text.includes(target)) continue;
+
+    const element = node.parentElement;
+    if (!element) continue;
+
+    const score = Math.abs(text.length - target.length);
+    if (!best || score < best.score) {
+      best = { element, score };
+      if (score === 0) break;
+    }
+  }
+
+  return best?.element || null;
+}
+
+function raf() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+async function scrollChapterIntoView(rendition, chapter) {
+  if (!rendition || !chapter?.title) return false;
+
+  await raf();
+  await raf();
+
+  const contentsList = rendition.getContents?.() || [];
+  for (const contents of contentsList) {
+    const target = findElementByChapterTitle(contents.document, chapter.title);
+    if (!target) continue;
+
+    target.scrollIntoView({ block: 'start', behavior: 'auto' });
+    return true;
+  }
+
+  return false;
 }
 
 function readStoredLocation(bookId) {
@@ -283,6 +350,18 @@ export function EpubReader({
 
     try {
       await rendition.display(target);
+      const duplicateCandidates = findChapterCandidatesByHref(chapters, chapter.href);
+      if (
+        displayTokenRef.current === token &&
+        !isCfiTarget(target) &&
+        !normalizeHref(chapter.href).includes('#') &&
+        duplicateCandidates.length > 1
+      ) {
+        const moved = await scrollChapterIntoView(rendition, chapter);
+        if (moved) {
+          rendition.reportLocation?.();
+        }
+      }
       if (displayTokenRef.current === token) {
         setDisplaying(false);
       }
@@ -334,14 +413,19 @@ export function EpubReader({
 
       const chapters = chaptersRef.current;
       const activeChapter = currentChapterRef.current || findChapterBySlug(chapters, currentSlugRef.current);
-      const matchedChapter = findChapterByHref(chapters, location.start.href);
+      const candidates = findChapterCandidatesByHref(chapters, location.start.href);
+      const matchedChapter = candidates[0] || null;
+      const exactActiveChapter = (
+        activeChapter &&
+        stripFragment(activeChapter.href) === stripFragment(location.start.href)
+      ) ? activeChapter : null;
       const progress = Number.isFinite(location.start.percentage)
         ? Math.max(0, Math.min(100, location.start.percentage * 100))
         : 0;
 
       onProgressChange?.(progress);
 
-      const storedChapter = matchedChapter || activeChapter;
+      const storedChapter = exactActiveChapter || matchedChapter || activeChapter;
       if (storedChapter?.slug && location.start.cfi) {
         writeStoredLocation(bookId, {
           slug: storedChapter.slug,
@@ -351,6 +435,7 @@ export function EpubReader({
 
       if (
         matchedChapter &&
+        candidates.length === 1 &&
         matchedChapter.slug !== currentSlugRef.current &&
         stripFragment(matchedChapter.href) !== stripFragment(activeChapter?.href || '')
       ) {

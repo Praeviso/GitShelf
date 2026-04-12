@@ -171,6 +171,41 @@ def _normalize_epub_href(base_path: str, href: str) -> str:
     return resolved
 
 
+def _package_relative_epub_href(package_path: str, href: str) -> str:
+    value = str(href or "").strip()
+    if not value:
+        return ""
+
+    path_part, frag = value.split("#", 1) if "#" in value else (value, "")
+    package_dir = posixpath.dirname(package_path)
+    relative = (
+        posixpath.relpath(path_part, package_dir)
+        if package_dir
+        else path_part
+    )
+    normalized = posixpath.normpath(relative)
+    if frag:
+        return f"{normalized}#{frag}"
+    return normalized
+
+
+def _rewrite_epub_toc_hrefs(
+    entries: list[EpubTocEntry],
+    *,
+    package_path: str,
+) -> list[EpubTocEntry]:
+    rewritten: list[EpubTocEntry] = []
+    for entry in entries:
+        rewritten.append(
+            EpubTocEntry(
+                title=entry.title,
+                href=_package_relative_epub_href(package_path, entry.href),
+                children=_rewrite_epub_toc_hrefs(entry.children, package_path=package_path),
+            )
+        )
+    return rewritten
+
+
 def _read_epub_package_path(zf: zipfile.ZipFile) -> str:
     try:
         container_xml = zf.read(EPUB_CONTAINER_PATH)
@@ -276,8 +311,6 @@ def _extract_epub_ncx_toc(zf: zipfile.ZipFile, ncx_path: str) -> list[EpubTocEnt
 def _guess_epub_fallback_toc(
     spine: list[str],
     manifest_by_id: dict[str, dict[str, str]],
-    *,
-    package_path: str,
 ) -> list[EpubTocEntry]:
     entries: list[EpubTocEntry] = []
     for item_id in spine:
@@ -285,7 +318,7 @@ def _guess_epub_fallback_toc(
         if not manifest_item:
             continue
 
-        href = _normalize_epub_href(package_path, manifest_item.get("href", ""))
+        href = posixpath.normpath(str(manifest_item.get("href", "")).strip())
         media_type = manifest_item.get("media_type", "")
         if media_type not in {"application/xhtml+xml", "text/html"}:
             continue
@@ -350,8 +383,11 @@ def _build_epub_toc_data(epub_path: Path) -> tuple[str, list[EpubTocEntry]]:
         else:
             toc_entries = []
 
+    if toc_entries:
+        toc_entries = _rewrite_epub_toc_hrefs(toc_entries, package_path=package_path)
+
     if not toc_entries:
-        toc_entries = _guess_epub_fallback_toc(spine_ids, manifest_by_id, package_path=package_path)
+        toc_entries = _guess_epub_fallback_toc(spine_ids, manifest_by_id)
 
     if not toc_entries:
         raise ValueError(f"Could not extract a table of contents from {epub_path.name}")

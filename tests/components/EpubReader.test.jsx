@@ -74,8 +74,8 @@ beforeEach(() => {
     'books/demo-book/toc.json': {
       title: 'Demo EPUB',
       children: [
-        { title: 'Chapter One', slug: 'chapter-1', href: 'OPS/chapter-1.xhtml' },
-        { title: 'Chapter Two', slug: 'chapter-2', href: 'OPS/chapter-2.xhtml' },
+        { title: 'Chapter One', slug: 'chapter-1', href: 'chapter-1.xhtml' },
+        { title: 'Chapter Two', slug: 'chapter-2', href: 'chapter-2.xhtml' },
       ],
     },
   });
@@ -134,8 +134,8 @@ describe('EpubReader', () => {
       'books/demo-book/toc.json': {
         title: 'Demo EPUB',
         children: [
-          { title: '1.2 线程的优势', slug: 'section-1-2', href: 'OPS/text00005.xhtml' },
-          { title: '1.2.1 发挥多处理器的强大能力', slug: 'section-1-2-1', href: 'OPS/text00005.xhtml' },
+          { title: '1.2 线程的优势', slug: 'section-1-2', href: 'text00005.xhtml' },
+          { title: '1.2.1 发挥多处理器的强大能力', slug: 'section-1-2-1', href: 'text00005.xhtml' },
         ],
       },
     });
@@ -151,7 +151,7 @@ describe('EpubReader', () => {
       />,
     );
 
-    await waitFor(() => expect(renditionDisplayMock).toHaveBeenCalledWith('OPS/text00005.xhtml'));
+    await waitFor(() => expect(renditionDisplayMock).toHaveBeenCalledWith('text00005.xhtml'));
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
     expect(renditionReportLocationMock).toHaveBeenCalled();
   });

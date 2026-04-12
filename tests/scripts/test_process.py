@@ -102,11 +102,11 @@ class EpubProcessingTest(unittest.TestCase):
             toc = json.loads((book_dir / "toc.json").read_text(encoding="utf-8"))
             self.assertEqual(toc["title"], "Sample EPUB")
             self.assertEqual(toc["children"][0]["title"], "Chapter One")
-            self.assertEqual(toc["children"][0]["href"], "OEBPS/chapter-1.xhtml")
+            self.assertEqual(toc["children"][0]["href"], "chapter-1.xhtml")
             self.assertEqual(toc["children"][0]["children"][0]["title"], "Section One")
             self.assertEqual(
                 toc["children"][0]["children"][0]["href"],
-                "OEBPS/chapter-1.xhtml#section-1",
+                "chapter-1.xhtml#section-1",
             )
             self.assertEqual(toc["children"][1]["title"], "Chapter Two")
 

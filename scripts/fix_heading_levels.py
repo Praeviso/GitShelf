@@ -9,6 +9,7 @@ to plain bold text.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -64,6 +65,7 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 def _normalize(text: str) -> str:
     """Normalize text for fuzzy comparison: lowercase, collapse whitespace."""
+    text = unicodedata.normalize("NFKC", text)
     return re.sub(r"\s+", " ", text.lower().strip())
 
 
@@ -73,6 +75,23 @@ def _similarity(a: str, b: str) -> float:
 
 _MATCH_THRESHOLD = 0.75
 _LOOKAHEAD = 5
+
+
+def _best_toc_match(
+    title: str,
+    toc: list[TocEntry],
+    toc_ptr: int,
+) -> tuple[int, float]:
+    """Return the best matching TOC index and score near *toc_ptr*."""
+    best_idx = -1
+    best_score = 0.0
+    search_end = min(toc_ptr + _LOOKAHEAD, len(toc))
+    for i in range(toc_ptr, search_end):
+        score = _similarity(title, toc[i].title)
+        if score > best_score:
+            best_score = score
+            best_idx = i
+    return best_idx, best_score
 
 
 # ---------------------------------------------------------------------------
@@ -111,18 +130,11 @@ def fix_heading_levels(markdown: str, toc: list[TocEntry]) -> str:
     replacements: list[tuple[int, int, str]] = []
     toc_ptr = 0
 
-    for m in matches:
+    match_idx = 0
+    while match_idx < len(matches):
+        m = matches[match_idx]
         heading_text = m.group(2).strip()
-        best_idx = -1
-        best_score = 0.0
-
-        # Try to match against toc[toc_ptr .. toc_ptr + LOOKAHEAD]
-        search_end = min(toc_ptr + _LOOKAHEAD, len(toc))
-        for i in range(toc_ptr, search_end):
-            score = _similarity(heading_text, toc[i].title)
-            if score > best_score:
-                best_score = score
-                best_idx = i
+        best_idx, best_score = _best_toc_match(heading_text, toc, toc_ptr)
 
         if best_score >= _MATCH_THRESHOLD and best_idx >= 0:
             # Matched — rewrite with correct level
@@ -130,12 +142,37 @@ def fix_heading_levels(markdown: str, toc: list[TocEntry]) -> str:
             new_line = f"{'#' * entry.level} {heading_text}"
             replacements.append((m.start(), m.end(), new_line))
             toc_ptr = best_idx + 1
-        else:
-            # Unmatched — demote to bold text
-            replacements.append((m.start(), m.end(), f"**{heading_text}**"))
+            match_idx += 1
+            continue
+
+        # MinerU can split a bookmark heading across adjacent heading lines,
+        # for example "# 第1章" followed by "# 简介" for "第1章 简介".
+        # Merge such adjacent headings when the combined text matches a
+        # nearby bookmark.
+        next_idx = match_idx + 1
+        if next_idx < len(matches):
+            next_match = matches[next_idx]
+            between = markdown[m.end():next_match.start()].strip()
+            if not between:
+                combined_text = f"{heading_text} {next_match.group(2).strip()}"
+                combined_idx, combined_score = _best_toc_match(
+                    combined_text,
+                    toc,
+                    toc_ptr,
+                )
+                if combined_score >= _MATCH_THRESHOLD and combined_idx >= 0:
+                    entry = toc[combined_idx]
+                    new_line = f"{'#' * entry.level} {entry.title}"
+                    replacements.append((m.start(), next_match.end(), new_line))
+                    toc_ptr = combined_idx + 1
+                    match_idx += 2
+                    continue
+
+        # Unmatched — demote to bold text
+        replacements.append((m.start(), m.end(), f"**{heading_text}**"))
+        match_idx += 1
 
     # Apply replacements in reverse order to preserve positions
-    parts = list(markdown)
     for start, end, new_text in reversed(replacements):
         markdown = markdown[:start] + new_text + markdown[end:]
 

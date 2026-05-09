@@ -225,7 +225,9 @@ def extract_zip_contents(zip_data: bytes) -> tuple[str, dict[str, bytes]]:
                 f"No .md file found in result ZIP. "
                 f"Contents: {zf.namelist()}"
             )
-        markdown = zf.read(md_files[0]).decode("utf-8")
+        markdown = "\n\n".join(
+            zf.read(name).decode("utf-8") for name in sorted(md_files)
+        )
 
         images: dict[str, bytes] = {}
         for name in zf.namelist():

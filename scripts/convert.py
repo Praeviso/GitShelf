@@ -16,6 +16,7 @@ import tempfile
 import unicodedata
 import zipfile
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from pathlib import Path
 
 try:
@@ -25,12 +26,24 @@ except ImportError:  # pragma: no cover - handled at runtime for local tests
 
 try:
     from .mineru_client import MineruClient, extract_zip_contents
-    from .split_markdown import split_by_headings
+    from .split_markdown import (
+        Chapter,
+        find_protected_ranges,
+        is_in_protected_range,
+        slugify,
+        split_by_headings,
+    )
     from .generate_structure import generate_book_structure
     from .build_manifest import build_manifest
 except ImportError:
     from mineru_client import MineruClient, extract_zip_contents
-    from split_markdown import split_by_headings
+    from split_markdown import (
+        Chapter,
+        find_protected_ranges,
+        is_in_protected_range,
+        slugify,
+        split_by_headings,
+    )
     from generate_structure import generate_book_structure
     from build_manifest import build_manifest
 
@@ -253,6 +266,205 @@ def _rewrite_chapter_image_paths(markdown: str, book_id: str) -> str:
     return markdown
 
 
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
+_BOOKMARK_SPLIT_MATCH_THRESHOLD = 0.72
+_BOOKMARK_SPLIT_MIN_BOUNDARIES = 2
+
+
+def _normalize_title(text: str) -> str:
+    value = unicodedata.normalize("NFKC", str(text or "")).lower()
+    value = re.sub(r"\s+", "", value)
+    value = re.sub(r"[^\w\u4e00-\u9fff]+", "", value, flags=re.UNICODE)
+    return value
+
+
+def _title_similarity(a: str, b: str) -> float:
+    normalized_a = _normalize_title(a)
+    normalized_b = _normalize_title(b)
+    if not normalized_a or not normalized_b:
+        return 0.0
+    if normalized_a == normalized_b:
+        return 1.0
+    if normalized_a in normalized_b or normalized_b in normalized_a:
+        return min(len(normalized_a), len(normalized_b)) / max(
+            len(normalized_a),
+            len(normalized_b),
+        )
+    return SequenceMatcher(None, normalized_a, normalized_b).ratio()
+
+
+def _is_part_bookmark(title: str) -> bool:
+    normalized = _normalize_title(title)
+    return bool(
+        re.match(r"^第[一二三四五六七八九十百千万0-9]+部分", normalized)
+        or re.match(r"^part[ivxlcdm0-9]+", normalized)
+    )
+
+
+def _is_chapter_bookmark(title: str) -> bool:
+    normalized = _normalize_title(title)
+    return bool(
+        re.match(r"^第[0-9一二三四五六七八九十百千万]+章", normalized)
+        or re.match(r"^chapter[0-9ivxlcdm]+", normalized)
+        or re.match(r"^appendix[a-z0-9一二三四五六七八九十百千万]*", normalized)
+        or re.match(r"^附录[a-z0-9一二三四五六七八九十百千万]*", normalized)
+    )
+
+
+def _select_chapter_bookmarks(toc: list[TocEntry]) -> list[TocEntry]:
+    """Pick bookmark entries that should become chapter boundaries.
+
+    PDFs generated from books often use part/group bookmarks at level 1 and
+    real chapters at level 2. Prefer explicit chapter-like titles when present.
+    Keep top-level non-part front/back matter as boundaries too.
+    """
+    chapter_entries = [entry for entry in toc if _is_chapter_bookmark(entry.title)]
+    top_level_entries = [
+        entry for entry in toc if entry.level == 1 and not _is_part_bookmark(entry.title)
+    ]
+    if chapter_entries:
+        selected: list[TocEntry] = []
+        chapter_entry_ids = {id(entry) for entry in chapter_entries}
+        top_level_entry_ids = {id(entry) for entry in top_level_entries}
+        selected_ids = set()
+        for entry in toc:
+            if id(entry) in chapter_entry_ids or id(entry) in top_level_entry_ids:
+                entry_id = id(entry)
+                if entry_id not in selected_ids:
+                    selected.append(entry)
+                    selected_ids.add(entry_id)
+        return selected
+
+    return top_level_entries
+
+
+def _heading_matches(markdown: str) -> list[re.Match[str]]:
+    protected = find_protected_ranges(markdown)
+    return [
+        match
+        for match in _HEADING_RE.finditer(markdown)
+        if not is_in_protected_range(match.start(), protected)
+    ]
+
+
+def _best_heading_match(
+    bookmark_title: str,
+    headings: list[re.Match[str]],
+    start_index: int,
+) -> tuple[int, float]:
+    """Find the best heading match at or after *start_index*."""
+    best_index = -1
+    best_score = 0.0
+
+    normalized_bookmark = _normalize_title(bookmark_title)
+    chapter_match = re.match(
+        r"^(第[0-9一二三四五六七八九十百千万]+章|chapter[0-9ivxlcdm]+|附录[a-z0-9一二三四五六七八九十百千万]*|appendix[a-z0-9]+)",
+        normalized_bookmark,
+    )
+    chapter_prefix = chapter_match.group(1) if chapter_match else ""
+
+    for index in range(start_index, len(headings)):
+        heading_title = headings[index].group(2).strip()
+        score = _title_similarity(heading_title, bookmark_title)
+        normalized_heading = _normalize_title(heading_title)
+
+        if chapter_prefix and normalized_heading == chapter_prefix:
+            score = max(score, 0.86)
+        elif chapter_prefix and normalized_heading.startswith(chapter_prefix):
+            score = max(score, 0.92)
+
+        if score > best_score:
+            best_score = score
+            best_index = index
+
+        if best_score >= 0.98:
+            break
+
+    return best_index, best_score
+
+
+def _make_bookmark_slug(index: int, title: str) -> str:
+    base = slugify(title)
+    prefix = f"{index:02d}"
+    if base:
+        return f"{prefix}-{base}"
+    return prefix
+
+
+def _promote_heading_levels(content: str, base_level: int) -> str:
+    """Promote a sliced bookmark chapter so its boundary heading is H1."""
+    shift = max(base_level - 1, 0)
+    if shift == 0:
+        return content.rstrip()
+
+    protected = find_protected_ranges(content)
+    replacements: list[tuple[int, int, str]] = []
+    for match in _HEADING_RE.finditer(content):
+        if is_in_protected_range(match.start(), protected):
+            continue
+        level = len(match.group(1))
+        new_level = max(1, min(6, level - shift))
+        replacements.append((match.start(), match.end(), f"{'#' * new_level} {match.group(2).strip()}"))
+
+    for start, end, new_text in reversed(replacements):
+        content = content[:start] + new_text + content[end:]
+    return content.rstrip()
+
+
+def _split_by_pdf_bookmarks(markdown: str, toc: list[TocEntry]) -> list[Chapter]:
+    """Split Markdown using chapter-like PDF bookmark titles when possible."""
+    bookmarks = _select_chapter_bookmarks(toc)
+    if not bookmarks:
+        return []
+
+    headings = _heading_matches(markdown)
+    if not headings:
+        return []
+
+    boundaries: list[tuple[TocEntry, re.Match[str], int]] = []
+    search_from = 0
+    for bookmark in bookmarks:
+        heading_index, score = _best_heading_match(bookmark.title, headings, search_from)
+        if heading_index < 0 or score < _BOOKMARK_SPLIT_MATCH_THRESHOLD:
+            continue
+        match = headings[heading_index]
+        boundaries.append((bookmark, match, heading_index))
+        search_from = heading_index + 1
+
+    if len(boundaries) < _BOOKMARK_SPLIT_MIN_BOUNDARIES:
+        return []
+
+    chapters: list[Chapter] = []
+    first_start = boundaries[0][1].start()
+    preface_text = markdown[:first_start].strip()
+    if preface_text:
+        chapters.append(Chapter(title="Preface", slug="00-preface", content=preface_text))
+
+    for index, (bookmark, match, _) in enumerate(boundaries, start=1):
+        start = match.start()
+        end = boundaries[index][1].start() if index < len(boundaries) else len(markdown)
+        content = markdown[start:end].rstrip()
+        content = _promote_heading_levels(content, bookmark.level)
+        chapters.append(
+            Chapter(
+                title=bookmark.title,
+                slug=_make_bookmark_slug(index, bookmark.title),
+                content=content,
+            )
+        )
+
+    return chapters
+
+
+def _split_chapters(markdown: str, toc: list[TocEntry]) -> list[Chapter]:
+    """Prefer PDF bookmark boundaries, then fall back to H1 splitting."""
+    if toc:
+        chapters = _split_by_pdf_bookmarks(markdown, toc)
+        if chapters:
+            return chapters
+    return split_by_headings(markdown, level=1)
+
+
 def _resolve_input_pdf(input_dir: Path, input_filename: str) -> Path:
     """Resolve a dispatch filename from input/.
 
@@ -325,7 +537,7 @@ def reconvert_from_cache(
     markdown = localize_images(markdown, images_dir, CHAPTER_IMAGES_PREFIX)
     markdown = _rewrite_chapter_image_paths(markdown, book_id)
 
-    chapters = split_by_headings(markdown, level=1)
+    chapters = _split_chapters(markdown, toc)
     generate_book_structure(book_id, title, chapters, output_dir)
 
     book_dir = output_dir / book_id
@@ -475,7 +687,7 @@ def convert_single_pdf(
     markdown = localize_images(markdown, images_dir, CHAPTER_IMAGES_PREFIX)
     markdown = _rewrite_chapter_image_paths(markdown, book_id)
 
-    chapters = split_by_headings(markdown, level=1)
+    chapters = _split_chapters(markdown, toc)
     generate_book_structure(book_id, title, chapters, output_dir)
 
     book_dir = output_dir / book_id

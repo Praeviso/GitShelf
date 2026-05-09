@@ -11,6 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 import convert
+from mineru_client import extract_zip_contents
+from fix_heading_levels import TocEntry, fix_heading_levels
 
 
 def _zip_with_markdown(markdown: str) -> bytes:
@@ -58,6 +60,73 @@ class ContentIdGenerationTest(unittest.TestCase):
         item_id = convert.generate_book_id(Path("!!!.pdf"))
         self.assertTrue(item_id.startswith("item-"))
         self.assertGreater(len(item_id), 5)
+
+
+class PdfBookmarkChapterSplitTest(unittest.TestCase):
+    def test_bookmark_split_prefers_chapter_entries_under_parts(self) -> None:
+        markdown = """# 译者序
+
+front matter
+
+# 第一部分 基础知识
+
+## 第2章 线程安全性
+
+### 2.1 什么是线程安全性
+
+body 2
+
+## 第3章 对象的共享
+
+### 3.1 可见性
+
+body 3
+"""
+        toc = [
+            TocEntry(level=1, title="译者序"),
+            TocEntry(level=1, title="第一部分 基础知识"),
+            TocEntry(level=2, title="第2章 线程安全性"),
+            TocEntry(level=3, title="2.1 什么是线程安全性"),
+            TocEntry(level=2, title="第3章 对象的共享"),
+            TocEntry(level=3, title="3.1 可见性"),
+        ]
+
+        chapters = convert._split_chapters(markdown, toc)
+
+        self.assertEqual([chapter.title for chapter in chapters], [
+            "译者序",
+            "第2章 线程安全性",
+            "第3章 对象的共享",
+        ])
+        self.assertIn("# 第2章 线程安全性", chapters[1].content)
+        self.assertIn("## 2.1 什么是线程安全性", chapters[1].content)
+        self.assertNotIn("第一部分", [chapter.title for chapter in chapters])
+
+    def test_bookmark_split_falls_back_to_h1_without_matches(self) -> None:
+        markdown = "# Intro\n\nbody\n\n# Next\n\nmore"
+        toc = [TocEntry(level=1, title="Completely Different")]
+
+        chapters = convert._split_chapters(markdown, toc)
+
+        self.assertEqual([chapter.title for chapter in chapters], ["Intro", "Next"])
+
+    def test_heading_fix_merges_adjacent_headings_for_bookmark_match(self) -> None:
+        markdown = "# 译者序\n\nbody\n\n# 第1章\n\n# 简介\n\n# 1.1 并发简史"
+        toc = [
+            TocEntry(level=1, title="译者序"),
+            TocEntry(level=1, title="第1章 简介"),
+            TocEntry(level=2, title="1.1 并发简史"),
+        ]
+
+        fixed = fix_heading_levels(markdown, toc)
+        chapters = convert._split_chapters(fixed, toc)
+
+        self.assertIn("# 第1章 简介", fixed)
+        self.assertNotIn("**第1章**", fixed)
+        self.assertEqual([chapter.title for chapter in chapters], [
+            "译者序",
+            "第1章 简介",
+        ])
 
 
 class PdfChunkingTest(unittest.TestCase):
@@ -142,6 +211,16 @@ class PdfChunkingTest(unittest.TestCase):
             self.assertTrue(
                 (cachedir / f"parent-md5_p{convert.MAX_PAGES_PER_CHUNK}_chunk_002.zip").exists()
             )
+
+    def test_extract_zip_contents_concatenates_multiple_markdown_files(self) -> None:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("chunk_001/full.md", "# Second")
+            zf.writestr("chunk_000/full.md", "# First")
+
+        markdown, _images = extract_zip_contents(buf.getvalue())
+
+        self.assertEqual(markdown, "# First\n\n# Second")
 
     def test_convert_large_pdf_reuses_cached_chunks_across_retries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 import convert
+from generate_structure import Chapter, generate_book_structure
 from mineru_client import extract_zip_contents
 from fix_heading_levels import TocEntry, fix_heading_levels
 
@@ -127,6 +128,23 @@ body 3
             "译者序",
             "第1章 简介",
         ])
+
+    def test_generate_book_structure_removes_stale_chapter_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            stale_dir = output_dir / "book" / "chapters"
+            stale_dir.mkdir(parents=True)
+            (stale_dir / "99-stale.md").write_text("# Stale\n", encoding="utf-8")
+
+            generate_book_structure(
+                "book",
+                "Book",
+                [Chapter(title="Fresh", slug="01-fresh", content="# Fresh\n")],
+                output_dir,
+            )
+
+            self.assertFalse((stale_dir / "99-stale.md").exists())
+            self.assertTrue((stale_dir / "01-fresh.md").exists())
 
 
 class PdfChunkingTest(unittest.TestCase):

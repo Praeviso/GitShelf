@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 try:
@@ -120,6 +121,8 @@ def generate_book_structure(
 
     book_dir = output_dir / book_id
     chapters_dir = book_dir / "chapters"
+    if chapters_dir.exists():
+        shutil.rmtree(chapters_dir)
     chapters_dir.mkdir(parents=True, exist_ok=True)
 
     for chapter in chapters:

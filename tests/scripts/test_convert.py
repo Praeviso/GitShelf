@@ -1,7 +1,9 @@
+import io
 import shutil
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -9,6 +11,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 import convert
+
+
+def _zip_with_markdown(markdown: str) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("auto.md", markdown)
+    return buf.getvalue()
 
 
 class ConvertDispatchResolutionTest(unittest.TestCase):
@@ -103,6 +112,7 @@ class PdfChunkingTest(unittest.TestCase):
 
             large_pdf_mock.assert_called_once()
             self.assertEqual(large_pdf_mock.call_args.args[2], 201)
+            self.assertEqual(large_pdf_mock.call_args.args[3], "md5")
             self.assertFalse(pdf_path.exists())
 
     def test_cleanup_pdf_chunks_ignores_unexpected_directories(self) -> None:
@@ -115,6 +125,61 @@ class PdfChunkingTest(unittest.TestCase):
             convert._cleanup_pdf_chunks([chunk_path])
 
             self.assertTrue(chunk_path.exists())
+
+    def test_chunk_cache_round_trips_zip_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cachedir = Path(tmp_dir) / "chunks"
+            zip_data = _zip_with_markdown("# Cached")
+
+            with patch.object(convert, "CHUNK_CACHE_DIR", cachedir):
+                convert._write_chunk_cache("parent-md5", 2, zip_data)
+                cached = convert._read_chunk_cache("parent-md5", 2)
+
+            self.assertIsNotNone(cached)
+            self.assertEqual(cached[0], zip_data)
+            self.assertEqual(cached[1], "# Cached")
+            self.assertEqual(cached[2], {})
+            self.assertTrue(
+                (cachedir / f"parent-md5_p{convert.MAX_PAGES_PER_CHUNK}_chunk_002.zip").exists()
+            )
+
+    def test_convert_large_pdf_reuses_cached_chunks_across_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            chunk_1 = root / "chunk-1.pdf"
+            chunk_2 = root / "chunk-2.pdf"
+            chunk_1.write_bytes(b"%PDF-1.4\n")
+            chunk_2.write_bytes(b"%PDF-1.4\n")
+
+            cached_zip = _zip_with_markdown("# Cached chunk")
+            fresh_zip = _zip_with_markdown("# Fresh chunk")
+            client = Mock()
+            client.convert_pdf.return_value = (fresh_zip, "# Fresh chunk", {"images/fresh.png": b"fresh"})
+
+            with (
+                patch.object(convert, "_read_chunk_cache", side_effect=[
+                    (cached_zip, "# Cached chunk", {"images/cached.png": b"cached"}),
+                    None,
+                ]) as read_cache_mock,
+                patch.object(convert, "_write_chunk_cache") as write_cache_mock,
+                patch.object(convert, "split_pdf", return_value=[chunk_1, chunk_2]),
+                patch.object(convert, "_cleanup_pdf_chunks"),
+            ):
+                zip_data, markdown, images = convert._convert_large_pdf(
+                    client,
+                    root / "book.pdf",
+                    400,
+                    "parent-md5",
+                )
+
+            self.assertEqual(read_cache_mock.call_count, 2)
+            client.convert_pdf.assert_called_once_with(chunk_2)
+            write_cache_mock.assert_called_once_with("parent-md5", 1, fresh_zip)
+            self.assertEqual(markdown, "# Cached chunk\n\n# Fresh chunk")
+            self.assertEqual(images["images/cached.png"], b"cached")
+            self.assertEqual(images["images/fresh.png"], b"fresh")
+            with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
+                self.assertEqual(len([n for n in zf.namelist() if n.endswith(".md")]), 2)
 
 
 class FailureTrackingTest(unittest.TestCase):

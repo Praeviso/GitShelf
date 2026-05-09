@@ -48,6 +48,7 @@ MAX_PAGES_PER_CHUNK = 200
 PAGE_THRESHOLD = MAX_PAGES_PER_CHUNK
 BOOK_METADATA_FILENAME = "meta.json"
 CACHE_DIR = Path("cache/markdown")
+CHUNK_CACHE_DIR = CACHE_DIR / "chunks"
 FAILURES_FILENAME = "failures.json"
 CHAPTER_IMAGES_PREFIX = "../images/"
 CONTENT_DIR_NAMES = {
@@ -385,6 +386,29 @@ def _read_cache(md5: str) -> tuple[str, dict[str, bytes], int, list[TocEntry]] |
     return None
 
 
+def _chunk_cache_key(parent_md5: str, chunk_index: int) -> str:
+    return f"{parent_md5}_p{MAX_PAGES_PER_CHUNK}_chunk_{chunk_index:03d}"
+
+
+def _write_chunk_cache(parent_md5: str, chunk_index: int, zip_data: bytes) -> None:
+    """Persist one successful chunk conversion for cross-workflow retry."""
+    CHUNK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    key = _chunk_cache_key(parent_md5, chunk_index)
+    (CHUNK_CACHE_DIR / f"{key}.zip").write_bytes(zip_data)
+
+
+def _read_chunk_cache(parent_md5: str, chunk_index: int) -> tuple[bytes, str, dict[str, bytes]] | None:
+    """Read one cached chunk conversion, returning raw ZIP plus extracted content."""
+    key = _chunk_cache_key(parent_md5, chunk_index)
+    zip_file = CHUNK_CACHE_DIR / f"{key}.zip"
+    if not zip_file.exists():
+        return None
+
+    zip_data = zip_file.read_bytes()
+    markdown, images = extract_zip_contents(zip_data)
+    return zip_data, markdown, images
+
+
 def convert_single_pdf(
     pdf_path: Path,
     output_dir: Path,
@@ -425,7 +449,7 @@ def convert_single_pdf(
 
         client = MineruClient()
         if page_count > PAGE_THRESHOLD:
-            zip_data, markdown, images = _convert_large_pdf(client, pdf_path, page_count)
+            zip_data, markdown, images = _convert_large_pdf(client, pdf_path, page_count, md5)
         else:
             zip_data, markdown, images = client.convert_pdf(pdf_path)
 
@@ -512,7 +536,7 @@ def _cleanup_pdf_chunks(chunk_paths: list[Path]) -> None:
 
 
 def _convert_large_pdf(
-    client: MineruClient, pdf_path: Path, page_count: int,
+    client: MineruClient, pdf_path: Path, page_count: int, parent_md5: str,
 ) -> tuple[bytes, str, dict[str, bytes]]:
     """Split a large PDF into chunks, convert each via MinerU, and concatenate."""
     print(f"  Splitting {page_count}-page PDF into ~{MAX_PAGES_PER_CHUNK}-page chunks")
@@ -522,9 +546,16 @@ def _convert_large_pdf(
         parts: list[str] = []
         all_images: dict[str, bytes] = {}
         all_zips: list[bytes] = []
-        for i, chunk_path in enumerate(chunk_paths, 1):
-            print(f"  Converting chunk {i}/{len(chunk_paths)}: {chunk_path.name}")
-            zip_data, md, images = client.convert_pdf(chunk_path)
+        for index, chunk_path in enumerate(chunk_paths):
+            display_index = index + 1
+            cached = _read_chunk_cache(parent_md5, index)
+            if cached:
+                zip_data, md, images = cached
+                print(f"  Chunk cache hit {display_index}/{len(chunk_paths)}: {chunk_path.name}")
+            else:
+                print(f"  Converting chunk {display_index}/{len(chunk_paths)}: {chunk_path.name}")
+                zip_data, md, images = client.convert_pdf(chunk_path)
+                _write_chunk_cache(parent_md5, index, zip_data)
             parts.append(md)
             all_images.update(images)
             all_zips.append(zip_data)

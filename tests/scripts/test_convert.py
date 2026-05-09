@@ -1,7 +1,9 @@
+import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -47,6 +49,72 @@ class ContentIdGenerationTest(unittest.TestCase):
         item_id = convert.generate_book_id(Path("!!!.pdf"))
         self.assertTrue(item_id.startswith("item-"))
         self.assertGreater(len(item_id), 5)
+
+
+class PdfChunkingTest(unittest.TestCase):
+    def test_split_pdf_uses_mineru_page_limit_by_default(self) -> None:
+        if convert.fitz is None:
+            self.skipTest("PyMuPDF is not installed")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pdf_path = Path(tmp_dir) / "large.pdf"
+            doc = convert.fitz.open()
+            for _ in range(201):
+                doc.new_page()
+            doc.save(str(pdf_path))
+            doc.close()
+
+            chunk_paths = convert.split_pdf(pdf_path)
+            tmp_chunks_dir = chunk_paths[0].parent
+            try:
+                self.assertEqual(len(chunk_paths), 2)
+                with convert.fitz.open(chunk_paths[0]) as first:
+                    self.assertEqual(len(first), convert.MAX_PAGES_PER_CHUNK)
+                with convert.fitz.open(chunk_paths[1]) as second:
+                    self.assertEqual(len(second), 1)
+            finally:
+                shutil.rmtree(tmp_chunks_dir, ignore_errors=True)
+
+    def test_convert_single_pdf_splits_anything_over_mineru_page_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            pdf_path = root / "input.pdf"
+            pdf_path.write_bytes(b"%PDF-1.4\n")
+
+            with (
+                patch.object(convert, "_pdf_md5", return_value="md5"),
+                patch.object(convert, "_read_cache", return_value=None),
+                patch.object(convert, "get_page_count", return_value=201),
+                patch.object(convert, "MineruClient", return_value=Mock()),
+                patch.object(
+                    convert,
+                    "_convert_large_pdf",
+                    return_value=(b"zip", "# Markdown", {}),
+                ) as large_pdf_mock,
+                patch.object(convert, "extract_toc", return_value=[]),
+                patch.object(convert, "_write_cache"),
+                patch.object(convert, "localize_images", side_effect=lambda markdown, *_: markdown),
+                patch.object(convert, "split_by_headings", return_value=[]),
+                patch.object(convert, "generate_book_structure"),
+                patch.object(convert, "_write_book_metadata"),
+                patch.object(convert, "_remove_failure"),
+            ):
+                convert.convert_single_pdf(pdf_path, root / "books")
+
+            large_pdf_mock.assert_called_once()
+            self.assertEqual(large_pdf_mock.call_args.args[2], 201)
+            self.assertFalse(pdf_path.exists())
+
+    def test_cleanup_pdf_chunks_ignores_unexpected_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            safe_dir = Path(tmp_dir) / "not-a-chunk-dir"
+            safe_dir.mkdir()
+            chunk_path = safe_dir / "chunk.pdf"
+            chunk_path.write_bytes(b"%PDF-1.4\n")
+
+            convert._cleanup_pdf_chunks([chunk_path])
+
+            self.assertTrue(chunk_path.exists())
 
 
 class FailureTrackingTest(unittest.TestCase):

@@ -44,8 +44,8 @@ try:
 except ImportError:
     from localize_images import localize_images
 
-MAX_PAGES_PER_CHUNK = 500
-PAGE_THRESHOLD = 600
+MAX_PAGES_PER_CHUNK = 200
+PAGE_THRESHOLD = MAX_PAGES_PER_CHUNK
 BOOK_METADATA_FILENAME = "meta.json"
 CACHE_DIR = Path("cache/markdown")
 FAILURES_FILENAME = "failures.json"
@@ -492,13 +492,31 @@ def _merge_zips(zip_list: list[bytes]) -> bytes:
     return buf.getvalue()
 
 
+def _cleanup_pdf_chunks(chunk_paths: list[Path]) -> None:
+    """Remove chunk temp directory only when it matches our mkdtemp pattern."""
+    if not chunk_paths:
+        return
+
+    tmp_dir = chunk_paths[0].parent
+    try:
+        resolved_tmp_dir = tmp_dir.resolve()
+        resolved_system_tmp = Path(tempfile.gettempdir()).resolve()
+    except OSError:
+        return
+
+    if (
+        tmp_dir.name.startswith("pdf2book_chunks_")
+        and resolved_system_tmp in resolved_tmp_dir.parents
+    ):
+        shutil.rmtree(resolved_tmp_dir, ignore_errors=True)
+
+
 def _convert_large_pdf(
     client: MineruClient, pdf_path: Path, page_count: int,
 ) -> tuple[bytes, str, dict[str, bytes]]:
     """Split a large PDF into chunks, convert each via MinerU, and concatenate."""
     print(f"  Splitting {page_count}-page PDF into ~{MAX_PAGES_PER_CHUNK}-page chunks")
     chunk_paths = split_pdf(pdf_path)
-    tmp_dir = chunk_paths[0].parent
 
     try:
         parts: list[str] = []
@@ -513,7 +531,7 @@ def _convert_large_pdf(
         merged_zip = _merge_zips(all_zips)
         return merged_zip, "\n\n".join(parts), all_images
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        _cleanup_pdf_chunks(chunk_paths)
 
 
 def _failures_path(docs_dir: Path) -> Path:
